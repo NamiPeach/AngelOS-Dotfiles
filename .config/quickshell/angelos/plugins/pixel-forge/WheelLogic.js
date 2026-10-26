@@ -30,7 +30,7 @@ function localUrl(urls) {
 }
 function immediate(action, target) {
     if (action === "convert" || action === "audio") return !!target;
-    return ["zip", "extract", "crop", "compress", "mute"].indexOf(action) !== -1;
+    return ["zip", "extract", "crop", "compress", "mute", "copyfile", "copypath", "email", "terminal"].indexOf(action) !== -1;
 }
 function choice(slot) {
     if (!slot || !slot.available) return null;

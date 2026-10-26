@@ -1,105 +1,45 @@
-# Pixel Forge
+# Pixel Forge 0.3.0
 
-Pixel-style local file action wheel for AngelOS, with English labels and live theme colours.
-Version 0.2.0. 12 Python tests, a real PDF-to-PNG conversion and empty-file copying passed on Windows; the actual Quickshell/Niri UI still needs a Linux smoke test.
-
-## New interaction preview
-
-The latest circular UI, outward submenu arcs, pink theme, multi-file simulation, and editable settings are in [docs/pixel-forge](../../../../../docs/pixel-forge/). They are a browser prototype and have not yet been ported to this native 0.2.0 plugin. See the demo README for remaining work.
-
-## Drag wheel
-
-Hold a local file in your file manager, press **Ctrl+Alt+F**, and move the pointer slightly. An overlay captures the first drag position and places a pixel wheel there, clamped inside the monitor. Hover **Convert >** (or Extract audio) for half a second to open its formats; drop onto a format to run. Hover the hub to return to actions; drop in the hub to cancel. Press Ctrl+Alt+F again to dismiss. No raw keyboard/device access or clipboard modification is used for this gesture.
-
-Direct format conversions, square crop, compression, mute, ZIP and ZIP extraction run in the background and notify when finished. Trim, Resize, Copy and Move open their settings in the main window. Move still needs explicit confirmation. A failed job opens the window with its error. Only one local file is accepted; the drag is always acknowledged as Copy so the source does not delete it.
-
-This is implemented using Quickshell's Wayland layer-shell and Qt drag-and-drop. The source application's drag behaviour and Niri shortcut delivery still require a live Linux smoke test. Positioning happens when the surface receives the first drag motion, not by reading a global cursor API. Invalid drops do nothing; dismissal cancels the drop, not a running conversion.
+Native local-file action wheel for AngelOS / Niri. The bundled plugin is enabled by default in the pixel theme. It uses the system palette, font and cursor.
 
 ## Use
 
-Enable **Pixel Forge** under Settings > Plugins. Click **Forge** on the bar or use the desktop menu.
-Choose **Browse**, drop one local file into the drop target, or copy a file in your file manager with Ctrl+C and choose **Paste file**.
-Choose a wheel action, adjust options, then press **Run action**. Output is saved beside the original unless you choose another existing folder.
-Conversion never overwrites an existing file. Move is the only action that removes the original and requires its own confirmation.
-Closing the window keeps the job running. Disabling the plugin or restarting the shell during a job is not supported.
+Hold one or more local files in your file manager, press **Ctrl+Alt+F**, then move the pointer. Hover an action with a submenu to open an outward arc. Drop on an action to execute it; drop in the centre to cancel. The centre's three square dots switch **Actions / Tools / Convert** after a short hover. There is no bottom action bar.
 
-## Formats and actions
+**Ctrl+Alt+1 / 2 / 3** opens or switches directly to Actions / Tools / Convert. Niri owns these shortcuts; change them under Keyboard settings. Bare Shift / Win / Ctrl during an external drag are not implemented: Qt Quick DragEvent exposes MIME keys, not keyboard modifiers. The source keeps keyboard focus. Mode dots provide a drag-compatible alternative.
 
-| Input | Output / actions | Required tool |
-|---|---|---|
-| Images: PNG, JPEG, WebP, AVIF, BMP, TIFF, HEIC, GIF | PNG, JPG, WebP, AVIF, TIFF, BMP, PDF; resize, central square crop, JPEG compression | ImageMagick 7 (`magick`) |
-| Video: MP4, MOV, MKV, WebM, AVI, M4V, MPEG | MP4, MOV, MKV, WebM, GIF; trim by start + duration, compress, resize, mute, extract audio | FFmpeg |
-| Audio: MP3, WAV, FLAC, Ogg, Opus, M4A, AAC, AIFF | MP3, WAV, FLAC, Ogg, Opus, M4A; trim, compress | FFmpeg |
-| Documents: DOC, DOCX, ODT, RTF, TXT, HTML | PDF, DOCX, ODT, RTF, TXT, HTML | LibreOffice |
-| Tables: XLS, XLSX, ODS, CSV, TSV | PDF, XLSX, ODS, CSV | LibreOffice |
-| Slides: PPT, PPTX, ODP | PDF, PPTX, ODP | LibreOffice |
-| Ebooks/text: EPUB, Markdown, RST | EPUB, HTML, DOCX, ODT, TXT | Pandoc |
-| PDF | Text, first page as PNG | Poppler |
-| ZIP | Extract into a new folder | Python standard library |
-| Any regular file, including other archives | Make ZIP, copy, move | Python standard library |
+Click **Forge** on the bar to open the regular window, browse or paste files, choose parameters or a destination. The same radial component appears here; the mouse wheel cycles modes. Move requires confirmation. Running operations continue if the window is closed.
 
-Output support depends on the installed tool's codecs, delegates and policies. An extension is not a guarantee a particular damaged or unusual file is readable. Missing tools and converter errors are shown in the window.
-Images use their first frame; animated GIF conversion to images is not animation-preserving. Crop is currently a centre square, not an interactive crop editor. PDF-to-PNG exports page 1 only. PDF text extraction does not perform OCR. PDF-to-DOCX is not included. CSV stores one sheet and loses formatting. Office conversions may change layout/fonts. Compression is lossy and cannot guarantee a smaller result. ZIP extraction is limited to 10,000 entries / 2 GiB declared expanded size; other archive formats can be wrapped in ZIP but are not unpacked or transcoded.
+## Settings
 
-## Install on CachyOS / Arch
+Open Pixel Forge's **Settings** button or Settings → Plugins → Pixel Forge. Diameter, art-pixel size, outer arc gap and submenu delay persist in AngelOS's plugin data in ~/.config/angelos/settings.json. Pixel size follows system scaling. Colours follow the system by default; custom accent and background colours can be saved. The default arc gap is one grid pixel.
 
-From your modified AngelOS checkout, its normal installer copies the bundled plugin with the shell. To install only this plugin into an existing AngelOS installation:
+Roxy is a system cursor, so the wheel uses it automatically once imported and selected under Appearance. Artwork is not included in this public repository; see the [personal importer](../roxy-cursor/README.md).
 
-```sh
-mkdir -p ~/.config/angelos/plugins
-cp -R .config/quickshell/angelos/plugins/pixel-forge ~/.config/angelos/plugins/
-sudo pacman -S --needed python ffmpeg imagemagick libreoffice-fresh pandoc poppler wl-clipboard
-```
+## Real actions
 
-Reload AngelOS, then enable Pixel Forge in Settings > Plugins. Python 3 is required even if using only copy/ZIP. Qt Quick Dialogs must be installed with your Quickshell Qt runtime.
+- Convert images, video, audio, office documents, tables, slides, ebooks and PDFs using installed local tools.
+- Resize images/video, central square image crop, compress media, trim video/audio, mute video and extract audio.
+- Create ZIP, extract ZIP, copy/move files, copy paths, inspect basic metadata and open a terminal in the file's folder.
+- Share opens an **email draft with attachments**, or copies file URLs to the clipboard. It never sends email automatically. Email needs a configured desktop mail client.
+- A selection offers only common actions/formats. Each file gets its own output. Partial batch failures are reported; completed outputs are retained.
 
-## Keyboard access
+Missing tools are hidden. Outputs are saved beside the originals unless another folder is chosen, with a numbered suffix when needed. Existing files are never overwritten. Drops always acknowledge CopyAction so the file manager retains its source. Only an explicitly confirmed Move removes originals.
 
-Open an empty wheel:
+## Install
 
-```sh
-qs -c angelos ipc call pixelForge show
-```
+Use the [fork installation instructions](../../../../../docs/INSTALL-NAMI.md). The normal installer copies the plugin and Niri shortcuts and installs FFmpeg, ImageMagick, LibreOffice, pandoc-cli, Poppler and libnotify with the AngelOS package set.
 
-Open a specific file (also suitable for a file-manager custom action that passes an argument):
+For an existing AngelOS installation, copy this directory to ~/.config/angelos/plugins/pixel-forge, install the tools, reload the shell, and add the shortcuts from cfg/keybinds-common.kdl if needed.
 
-```sh
-qs -c angelos ipc call pixelForge openFile "/home/you/Downloads/example.mp4"
-```
+## Limits
 
-For a Niri shortcut, add this binding inside your existing `binds` block in your user configuration. Verify the combination is unused first:
+Regular local files only, up to 100 per selection; folders, URLs and symlinks are rejected. Formats depend on codecs/delegates and valid input. Images use their first frame. Image crop is a central square, not an interactive editor. PDF conversion supports text or page 1 as PNG; no PDF-to-DOCX, merge or OCR. Office layout may change; CSV retains one sheet. Compression is lossy and may not shrink a file. Extraction supports ZIP only, rejects unsafe paths and links, and limits entries to 10,000 / 2 GiB declared expanded size.
 
-```kdl
-Mod+Shift+F { spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "show"; }
-```
-
-To open with a copied file directly, bind this instead, adjusting the script path to the installed plugin:
-
-```kdl
-Mod+Shift+F { spawn "python3" "/home/YOUR_USER/.config/angelos/plugins/pixel-forge/forge.py" "clipboard"; }
-```
-
-The clipboard helper is an alternative to dragging. It requires Ctrl+C in a file manager that supplies `text/uri-list` and accepts exactly one file.
-
-The modified fork already includes the Ctrl+Alt+F binding in `cfg/keybinds-common.kdl`. For a standalone plugin install, add the following to your own Niri configuration (check for an existing conflicting shortcut first):
-
-```kdl
-binds {
-    CTRL+ALT+F repeat=false hotkey-overlay-title="Pixel Forge: file action wheel" {
-        spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "wheel";
-    }
-}
-```
-
-The normal `show` IPC still opens the settings window. The `wheel` IPC toggles the drag overlay. It does not take keyboard focus away from the drag source. Escape in the source normally cancels its drag; the toggle shortcut and hub are explicit cancellation routes.
+The [browser demo](../../../../../docs/pixel-forge/) contains additional simulated operations (Telegram, Notes, shelf, OCR, more crop presets and archive formats). These are not offered by the native plugin.
 
 ## Verification
 
-```sh
-python3 test_forge.py
-node test_wheel.cjs
-```
+Run python3 test_forge.py, node test_pixel.cjs and node test_wheel.cjs from this directory. Tests cover non-overwrite behaviour, move confirmation, unsafe archives, batch intersection and partial failures, Share argument handling, metadata, radial hit regions and exact pixel gaps.
 
-On Linux, test opening/closing the window, a drag from your file manager, Copy/Paste, the IPC shortcut, long filenames, a missing converter, each media category, failed conversions and a confirmed move. Check the light/dark pixel themes, display scaling, small screens and the final output in its normal application. Jobs are one file at a time and have a one-hour timeout. No network service, API key or AI subscription is used by this plugin.
-
-Drag-wheel regression checks: the real JS geometry/dispatch module passes 1,190 tile placement checks across seven monitor/scale combinations, plus hub cancellation, disabled-action rejection and local single-file URL checks. These do not replace native QML/runtime testing. In Linux specifically test Ctrl+Alt+F while holding a file, submenu dwell, source retention, dropping outside/on the hub, disabled tools, monitor crossing, and a busy converter.
+All QML files parse with Qt's qmlformat. The actual RadialWheel.qml was instantiated and rendered with Qt Quick on Windows using small theme/widget stubs and the bundled Cozette font. This does not test Quickshell, Wayland or Niri. On Linux verify first drag position, monitor boundaries, multi-file drops, mode shortcuts, submenu dwell, hub cancellation, converter errors and the settings page before relying on it for important files.

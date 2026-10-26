@@ -8,7 +8,7 @@ Settings adjusts wheel diameter, pixel size, arc gap in grid cells, pink theme c
 
 ## Native integration status
 
-The native plugin is at [pixel-forge](../../.config/quickshell/angelos/plugins/pixel-forge/). It implements a smaller set of real local conversions and a Ctrl+Alt+F drag overlay. The current browser wheel geometry, outward Share submenus, multi-file selection, and editable appearance settings still need porting to QML. Share targets, OCR, and other demo-only operations are not implemented by the native backend. Native Quickshell/Niri behaviour needs testing on Linux.
+The native [Pixel Forge 0.3.0 plugin](../../.config/quickshell/angelos/plugins/pixel-forge/) now has a circular pixel wheel, outward submenus, persistent system settings and multiple-file operations. Its supported actions are real local operations; its README lists the exact capabilities. This playground still simulates extra features such as shelf, Telegram, OCR, merge and additional crop/archive formats. Native external-drag modes use centre dots or Ctrl+Alt+1/2/3; bare modifier switching remains demo-only. See [installation](../INSTALL-NAMI.md).
 
 ## Optional personal cursor
 

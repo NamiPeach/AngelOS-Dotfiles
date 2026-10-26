@@ -1,3 +1,5 @@
+> **NamiPeach fork:** [Install with Pixel Forge and your personal cursor](docs/INSTALL-NAMI.md).
+
 <div align="center">
 
 <img src="docs/readme/footage/header.svg" width="100%" alt="A VHS playback screen: PLAY, a blinking REC dot, the date 31.12.2002 and a running timecode; the word angelOS jumps in a red and blue glitch; RECOVERED MEDIA · 12 TAPES · CASE #0031-12">

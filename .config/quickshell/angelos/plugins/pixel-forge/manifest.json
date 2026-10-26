@@ -1,7 +1,7 @@
 {
   "id": "pixel-forge",
   "name": "Pixel Forge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "NamiPeach",
   "description": "Pixel file wheel for documents, images, video, audio and archives.",
   "icon": "folder",
@@ -17,5 +17,6 @@
       "icon": "folder",
       "exec": "qs -c angelos ipc call pixelForge show"
     }
-  ]
+  ],
+  "settings": "Settings.qml"
 }

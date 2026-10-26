@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Local conversions with allowlisted commands and exclusive output creation."""
+from datetime import datetime
 import argparse
 import json
 import math
@@ -62,8 +63,11 @@ def catalog(path):
     def add(key, label, tool=None, targets=None, hint=''):
         actions.append(dict(id=key, label=label, tool=tool or '', available=not tool or bool(shutil.which(tool)),
                             targets=targets or [], hint=hint))
-    if TARGETS[kind]:
-        add('convert', 'Convert', engine(kind), TARGETS[kind], 'Layout may change. CSV saves one sheet; PDF to PNG saves page 1. Images use the first frame.')
+    targets = TARGETS[kind]
+    if kind == 'pdf':
+        targets = [t for t in targets if shutil.which('pdftotext' if t == 'txt' else 'pdftoppm')]
+    if targets:
+        add('convert', 'Convert', engine(kind), targets, 'Layout may change. CSV saves one sheet; PDF to PNG saves page 1. Images use the first frame.')
     if kind == 'image':
         add('resize', 'Resize', 'magick', hint='Maximum width in pixels; never enlarges.')
         add('crop', 'Square crop', 'magick', hint='Crop the centre to a square, save as PNG.')
@@ -80,6 +84,13 @@ def catalog(path):
     add('zip', 'Make ZIP', hint='Archive this file without changing it.')
     add('copy', 'Copy to folder', hint='Destination folder is required.')
     add('move', 'Move to folder', hint='Moves the original after creating the destination copy.')
+    add('copyfile', 'Copy file', 'wl-copy')
+    add('copypath', 'Copy path', 'wl-copy')
+    add('email', 'Email draft', 'xdg-email')
+    add('metadata', 'Metadata')
+    terminal = next((t for t in ('kitty', 'foot', 'alacritty') if shutil.which(t)), None)
+    if terminal:
+        add('terminal', 'Terminal', terminal)
     return dict(path=str(path), name=path.name, kind=kind, actions=actions)
 
 def run(args):
@@ -242,6 +253,88 @@ def execute(request):
                 return dict(ok=True, output=str(result), warning='Copied, but could not remove original: ' + str(exc))
         return dict(ok=True, output=str(result))
 
+def selected_paths(value):
+    values = json.loads(value) if value.startswith('[') else [value]
+    if not isinstance(values, list) or not 1 <= len(values) <= 100 or not all(isinstance(v,str) for v in values):
+        raise ValueError('Choose between 1 and 100 local files.')
+    return list(dict.fromkeys(local_path(v) for v in values))
+
+def catalog_many(paths):
+    catalogs = [catalog(p) for p in paths]
+    result = dict(catalogs[0], paths=[str(p) for p in paths])
+    if len(paths) == 1:
+        return result
+    result['name'] = f'{len(paths)} files'
+    result['kind'] = 'selection'
+    common = []
+    for action in catalogs[0]['actions']:
+        matches = [next((a for a in c['actions'] if a['id']==action['id'] and a['available']), None) for c in catalogs]
+        if not all(matches) or action['id'] == 'terminal':
+            continue
+        action = dict(action)
+        action['targets'] = [t for t in action['targets'] if all(t in a['targets'] for a in matches)]
+        if action['id'] in ('convert','audio') and not action['targets']:
+            continue
+        common.append(action)
+    result['actions'] = common
+    return result
+
+def desktop_action(paths, action):
+    if action in ('copyfile','copypath'):
+        payload = ('\r\n'.join(p.as_uri() for p in paths)+'\r\n') if action=='copyfile' else '\n'.join(str(p) for p in paths)
+        subprocess.run(['wl-copy','--type','text/uri-list' if action=='copyfile' else 'text/plain;charset=utf-8'],
+                       input=payload.encode(),check=True,timeout=15)
+        return dict(ok=True,output='',message='Copied to clipboard.')
+    if action == 'email':
+        args=['xdg-email']
+        for path in paths:
+            args += ['--attach',str(path)]
+        subprocess.run(args,check=True,timeout=30)
+        return dict(ok=True,output='',message='Opened an email draft with attachments.')
+    if action == 'metadata':
+        details=['{}: {:,} bytes; modified {}'.format(p.name,p.stat().st_size,
+                 datetime.fromtimestamp(p.stat().st_mtime).isoformat(sep=' ',timespec='seconds')) for p in paths]
+        return dict(ok=True,output='',message='\n'.join(details))
+    if action == 'terminal':
+        tool=next((t for t in ('kitty','foot','alacritty') if shutil.which(t)),None)
+        if not tool:
+            raise ValueError('Install kitty, foot or alacritty.')
+        flag={'kitty':'--directory','foot':'--working-directory','alacritty':'--working-directory'}[tool]
+        subprocess.Popen([tool,flag,str(paths[0].parent)],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+        return dict(ok=True,output='',message='Opened terminal in the file folder.')
+    raise ValueError('Unknown desktop action.')
+
+def execute_many(request):
+    paths=[local_path(p) for p in request.get('paths',[request.get('path','')])]
+    if not 1<=len(paths)<=100:
+        raise ValueError('Choose between 1 and 100 local files.')
+    paths=list(dict.fromkeys(paths))
+    action=request.get('action')
+    entry=next((a for a in catalog_many(paths)['actions'] if a['id']==action and a['available']),None)
+    if not entry:
+        raise ValueError('This action is unavailable for this selection.')
+    if entry['targets'] and request.get('target') not in entry['targets']:
+        raise ValueError('Choose a common output format.')
+    if action in ('copyfile','copypath','email','metadata','terminal'):
+        return desktop_action(paths,action)
+    if len(paths)==1:
+        return execute(dict(request,path=str(paths[0])))
+    outputs, errors = [], []
+    # Each file is published independently; report partial success explicitly.
+    for path in paths:
+        try:
+            result=execute(dict(request,path=str(path)))
+            outputs.append(result['output'])
+            if result.get('warning'):
+                errors.append(path.name+': '+result['warning'])
+        except Exception as exc:
+            errors.append(path.name+': '+str(exc))
+    if not outputs:
+        raise ValueError('\n'.join(errors))
+    return dict(ok=True,output=outputs[0],outputs=outputs,
+                warning=('\n'.join(errors) if errors else ''),
+                message=f'Done: {len(outputs)} of {len(paths)} files.')
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('mode', choices=['inspect', 'run', 'clipboard'])
@@ -255,7 +348,7 @@ def main():
                 raise ValueError('Copy exactly one file in your file manager first.')
             subprocess.run(['qs', '-c', 'angelos', 'ipc', 'call', 'pixelForge', 'openFile', str(local_path(paths[0]))], check=True)
             return
-        result = catalog(local_path(args.value)) if args.mode == 'inspect' else execute(json.loads(args.value))
+        result = catalog_many(selected_paths(args.value)) if args.mode == 'inspect' else execute_many(json.loads(args.value))
         print(json.dumps(result))
     except Exception as exc:
         print(json.dumps(dict(ok=False, error=str(exc))))

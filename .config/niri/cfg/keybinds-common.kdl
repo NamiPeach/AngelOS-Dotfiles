@@ -5,6 +5,9 @@
 binds {
     // Hold a file, press Ctrl+Alt+F, then drop onto a Pixel Forge action.
     CTRL+ALT+F repeat=false hotkey-overlay-title="Pixel Forge: file action wheel" { spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "wheel"; }
+    CTRL+ALT+1 repeat=false hotkey-overlay-title="Pixel Forge: Actions" { spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "setMode" "actions"; }
+    CTRL+ALT+2 repeat=false hotkey-overlay-title="Pixel Forge: Tools" { spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "setMode" "tools"; }
+    CTRL+ALT+3 repeat=false hotkey-overlay-title="Pixel Forge: Convert" { spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "setMode" "convert"; }
     Mod+Shift+ESCAPE                     { show-hotkey-overlay; }
     Mod+Shift+Return                    hotkey-overlay-title="angelOS: обои" { spawn-sh "qs -c angelos ipc call angelos settings wallpaper"; }
     Mod+S                               hotkey-overlay-title="angelOS: настройки" { spawn-sh "qs -c angelos ipc call angelos settings appearance"; }

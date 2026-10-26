@@ -62,3 +62,10 @@ adw-gtk-theme
 # hid itself without it); qrencode draws the device code's QR on that step
 github-cli
 qrencode
+
+# Pixel Forge native converters (installed with the shell)
+ffmpeg
+libreoffice-fresh
+pandoc-cli
+poppler
+libnotify
