@@ -3,6 +3,8 @@
 // (cfg/keybinds-pixel.kdl, cfg/keybinds-macos.kdl): a key there replaces the one here,
 // for that theme only. Settings → Keyboard shows these read-only.
 binds {
+    // Hold a file, press Ctrl+Alt+F, then drop onto a Pixel Forge action.
+    CTRL+ALT+F repeat=false hotkey-overlay-title="Pixel Forge: file action wheel" { spawn "qs" "-c" "angelos" "ipc" "call" "pixelForge" "wheel"; }
     Mod+Shift+ESCAPE                     { show-hotkey-overlay; }
     Mod+Shift+Return                    hotkey-overlay-title="angelOS: обои" { spawn-sh "qs -c angelos ipc call angelos settings wallpaper"; }
     Mod+S                               hotkey-overlay-title="angelOS: настройки" { spawn-sh "qs -c angelos ipc call angelos settings appearance"; }

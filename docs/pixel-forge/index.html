@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pixel Forge interaction demo</title><link rel="stylesheet" href="styles.css"><style>body{margin:0;padding:16px;background:#150b1e}main{max-width:760px;margin:auto}</style></head><body><main>
+<div id="pf-playground" data-theme="dark">
+ <div class="pf-window">
+  <div class="pf-titlebar"><span class="pf-symbol" aria-hidden="true">▣</span><span class="pf-title">pixel-forge.exe</span><span class="pf-tag">INTERACTION TEST</span></div>
+  <div class="pf-toolbar"><span class="pf-path">~/Demo files/</span><button class="pf-btn primary" data-cmd="wheel">Open wheel</button><button class="pf-btn" data-cmd="theme" aria-label="Switch light or dark theme">Light / Dark</button></div>
+  <div class="pf-stage" aria-label="Demo file area. Drag a file and tap Shift, or click a file.">
+   <div class="pf-files"></div><div class="pf-shelf" hidden></div><div class="pf-toast" role="status" hidden></div>
+   <div class="pf-tip">CTRL + CLICK: SELECT MANY · DRAG + SHIFT / WIN / CTRL</div>
+   <div class="pf-shade" hidden></div>
+   <div class="pf-wheel" role="group" aria-label="File actions" hidden><div class="pf-wheel-title"></div><div class="pf-slots"></div><div class="pf-outer" hidden></div><button class="pf-hub">Cancel</button><div class="pf-ring-dots" aria-label="Wheel mode"><button type="button" data-ring="actions" aria-label="Actions"></button><button type="button" data-ring="tools" aria-label="Tools"></button><button type="button" data-ring="convert" aria-label="Convert"></button></div><button type="button" class="pf-back pf-btn" hidden>Back</button><div class="pf-wheel-note">Hover a submenu · drop or click to choose</div></div>
+   <div class="pf-ghost" hidden></div>
+   <form class="pf-params" hidden><h3></h3><div class="pf-fields"></div><div class="pf-param-buttons"><button class="pf-btn primary pf-apply" type="button">Apply</button><button class="pf-btn" type="button" data-cmd="cancel">Cancel</button></div></form>
+  </div>
+  <div class="pf-footer"><span class="pf-status" role="status" aria-live="polite">Demo only · no real files changed or sent</span><button class="pf-btn" data-cmd="reset">Reset files</button></div>
+ </div>
+</div>
+</main><script src="state.js"></script><!-- Optional local personal-cursor.js goes here, before demo.js. --><script src="demo.js"></script></body></html>

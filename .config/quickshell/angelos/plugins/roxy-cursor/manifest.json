@@ -1,0 +1,10 @@
+{
+  "id": "roxy-cursor",
+  "name": "Roxy Cursor",
+  "version": "0.1.0",
+  "author": "NamiPeach",
+  "description": "Select your personally imported Roxy Migurdia cursor. Artwork by EbiEbiBeam is not bundled.",
+  "enabledByDefault": true,
+  "themes": ["pixel", "mac"],
+  "appearanceThemes": [{"id":"roxy","name":"Roxy Migurdia","kind":"cursor","theme":"Roxy-Migurdia"}]
+}
