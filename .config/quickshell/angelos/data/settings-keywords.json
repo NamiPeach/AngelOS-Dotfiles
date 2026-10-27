@@ -9,6 +9,20 @@
     "картинка в терминале",
     "terminal logo"
   ],
+  "appearance/settingslook": [
+    "старые настройки",
+    "старый вид",
+    "старые",
+    "вернуть настройки",
+    "как в windows",
+    "windows",
+    "win11",
+    "p5",
+    "persona",
+    "персона",
+    "old settings",
+    "classic settings"
+  ],
   "appearance/skin": [
     "скин",
     "windose",
@@ -27,11 +41,8 @@
     "light mode"
   ],
   "appearance/glass-pixels": [
-    "блюр",
-    "размытие",
     "стекло",
     "прозрачность панелей",
-    "blur",
     "glass",
     "transparency"
   ],
@@ -41,7 +52,11 @@
     "мельче",
     "ui scale",
     "bigger",
-    "smaller"
+    "smaller",
+    "размер пикселя",
+    "масштаб",
+    "pixel size",
+    "scale"
   ],
   "appearance/motion": [
     "анимации",
@@ -116,11 +131,6 @@
     "gacha",
     "daily reward"
   ],
-  "lock/lock-timers": [
-    "автоблокировка",
-    "блокировать",
-    "auto lock"
-  ],
   "lock/awake": [
     "не засыпать",
     "не спать",
@@ -141,12 +151,6 @@
     "заставка",
     "скринсейвер",
     "screensaver"
-  ],
-  "lock/idle-timer": [
-    "заставка",
-    "простой",
-    "screensaver",
-    "idle"
   ],
   "y2k/loading-screen": [
     "загрузка",
@@ -310,7 +314,12 @@
   "bar/start-button": [
     "пуск",
     "меню пуск",
-    "start menu"
+    "start menu",
+    "вид пуска",
+    "стиль пуска",
+    "windows 11",
+    "xmb",
+    "spotlight"
   ],
   "bar/start-meta": [
     "meta",
@@ -321,9 +330,14 @@
   "bar/angelos-logo": [
     "логотип",
     "надпись angelos",
-    "logo"
+    "logo",
+    "кнопка пуск",
+    "капсула",
+    "скин пуска",
+    "значок пуска",
+    "эмблема"
   ],
-  "windows/window-decorations/Цвет панели браузера": [
+  "windows/app-themes/Цвет панели браузера": [
     "helium",
     "хелиум",
     "вкладки",
@@ -482,7 +496,9 @@
     "pixelate",
     "pixel art",
     "pixel wallpaper",
-    "dither"
+    "dither",
+    "размер пикселя",
+    "pixel size"
   ],
   "wallpaper/releases": [
     "обои релиза",
@@ -629,27 +645,11 @@
     "dark mode",
     "light mode"
   ],
-  "monitor/output/Режим": [
-    "частота",
-    "частота обновления",
-    "герцы",
-    "разрешение",
-    "refresh rate",
-    "resolution",
-    "hz"
-  ],
   "mouse/mouse/Чувствительность": [
     "скорость мыши",
     "скорость курсора",
     "dpi",
     "mouse speed"
-  ],
-  "y2k/demon-corner/Болтает сама": [
-    "реплики",
-    "фразы",
-    "болтовня",
-    "lines",
-    "chatter"
   ],
   "appearance/theme/Пипетка": [
     "пипетка",
@@ -795,5 +795,40 @@
     "data collection",
     "privacy",
     "analytics"
+  ],
+  "bar/start-avatar-fine": [
+    "аватарка",
+    "аватар",
+    "тонкая настройка пуска",
+    "размер пуска",
+    "сетка пуска",
+    "avatar"
+  ],
+  "bar/start-search": [
+    "поиск",
+    "калькулятор",
+    "поиск файлов",
+    "search",
+    "calculator"
+  ],
+  "laptop/power-idle": [
+    "автоблокировка",
+    "блокировать",
+    "auto lock",
+    "заставка",
+    "простой",
+    "screensaver",
+    "idle"
+  ],
+  "peripherals/devices": [
+    "заряд устройств",
+    "device charge"
+  ],
+  "accessibility/contrast/Уменьшить прозрачность": [
+    "блюр",
+    "размытие",
+    "стекло",
+    "blur",
+    "glass"
   ]
 }

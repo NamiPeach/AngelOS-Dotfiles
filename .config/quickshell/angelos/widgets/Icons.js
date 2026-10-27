@@ -385,6 +385,27 @@ const icons = {
         ".#fff#...",
         "..###...."
     ],
+    // the bar's cup (modules/bar/parts/AwakeButton): its steam's second frame, and the cup cold
+    coffeeSteam: [
+        "..w.w....",
+        "...w.w...",
+        "#######..",
+        "#ooooo###",
+        "#fffff#.#",
+        "#fffff###",
+        ".#fff#...",
+        "..###...."
+    ],
+    coffeeCold: [
+        ".........",
+        ".........",
+        "#######..",
+        "#ooooo###",
+        "#fffff#.#",
+        "#fffff###",
+        ".#fff#...",
+        "..###...."
+    ],
     sun: [
         ".....y.....",
         ".y...y...y.",
@@ -468,6 +489,18 @@ const icons = {
         "..#ffwff##.",
         "...######.."
     ],
+    // a window on every desk (angel-niri's Desktop: the window menu, its title bar's badge)
+    allDesks: [
+        "....#######",
+        "....#.....#",
+        "....#.....#",
+        "#######...#",
+        "#ooooo#...#",
+        "#ooooo#####",
+        "#ooooo#....",
+        "#ooooo#....",
+        "#######...."
+    ],
     layers: [
         "....#######",
         "....#xxxxx#",
@@ -478,6 +511,17 @@ const icons = {
         "#fffff#o#..",
         "#fffff###..",
         "#######...."
+    ],
+    // the Strip: windows in columns (Settings → Windows, the OSD, the bar's mode button)
+    strip: [
+        "###.###.###",
+        "#o#.#o#.#o#",
+        "###.###.###",
+        "#f#.#f#.#f#",
+        "#f#.#f#.#f#",
+        "#f#.#f#.#f#",
+        "#f#.#f#.#f#",
+        "###.###.###"
     ],
     package: [
         "...#####...",

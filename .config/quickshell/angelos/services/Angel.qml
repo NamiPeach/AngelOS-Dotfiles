@@ -65,7 +65,7 @@ Singleton {
     // her look (Settings → Y2K → Looks): the pick, unless the story changed her past cold
     // (story/game.json → angel.fallen) — then that one, whatever is picked; the pick is kept
     // the looks past the glitch girl are heaven's things (services/Heaven): earned, or the glitch one
-    readonly property string angelLook: Story.angelFallen ? Story.fallenLook : ["glitch", "chibi", "adult", "mini"].includes(Config.y2k.angelLook) && Heaven.lookOk(Config.y2k.angelLook) ? Config.y2k.angelLook : "glitch"
+    readonly property string angelLook: Story.angelFallen ? Story.fallenLook : ["glitch", "chibi", "mini"].includes(Config.y2k.angelLook) && Heaven.lookOk(Config.y2k.angelLook) ? Config.y2k.angelLook : "glitch"
     // on stream (services/StreamAngel) she sits on the streamed screen's taskbar (AngelHelper)
     readonly property bool streamer: StreamAngel.shown && !!StreamAngel.screen
     // the main screen, her own one (Y2K → Screen; unplugged → the main one), or where the focus is
@@ -76,6 +76,8 @@ Singleton {
     property var actions: []                 // [{label, icon, run, choice}]: buttons in the bubble (choice: an answer, never singled out)
     property bool talking: false
     property bool menuOpen: false
+    // the window she sits on (her menu → «Sit on the window», AngelHelper), -1 in her corner
+    property int perchedOn: -1
     property string menuMode: "main"         // main | ask | assistant
     // An optional plugin-owned assistant. No model endpoint or prompt is handled by the shell.
     property var assistant: null
@@ -495,9 +497,9 @@ Singleton {
     readonly property var intents: [
         {
             "re": /крупн|больше|мельч|мелк|масштаб|bigger|larger|smaller|zoom|scale/,
-            "page": "theme",
-            "ru": "Крупнее или мельче всё — «Тема и цвета» → «Размер пикселя», а текст — «Шрифты» → «Масштаб шрифтов».",
-            "en": "Everything bigger or smaller: Theme and colours → Pixel size; the text: Fonts → Font scale."
+            "page": "a11y",
+            "ru": "Крупнее или мельче всё — «Доступность» → «Размер интерфейса», а текст — «Шрифты» → «Масштаб шрифтов».",
+            "en": "Everything bigger or smaller: Accessibility → Interface size; the text: Fonts → Font scale."
         },
         {
             "re": /обо(и|ев|ям)|картинк|фон |wallpaper|background/,
@@ -514,8 +516,8 @@ Singleton {
         {
             "re": /тёмн|темн|светл|тема|dark|light mode|theme/,
             "page": "theme",
-            "ru": "Светлая или тёмная тема — «Тема и цвета», или просто Mod+Alt+T.",
-            "en": "Light or dark theme: Theme and colours, or just Mod+Alt+T."
+            "ru": "Светлая или тёмная тема — «Тема», или просто Win+Alt+T.",
+            "en": "Light or dark theme: Theme, or just Win+Alt+T."
         },
         {
             "re": /горяч|сочетан|клавиш|хоткей|shortcut|hotkey|keybind/,
@@ -1305,24 +1307,24 @@ Singleton {
             "key": "bar.startLabel",
             "value": () => "hellOS",
             "can": () => Config.bar.startLabel !== "hellOS",
-            "page": "bar",
-            "ru": "Посмотри на «Пуск». Теперь это hellOS. Надпись меняется в «Панели», если что.",
-            "en": "Look at Start. It's hellOS now. The label is in the Bar settings, if you care."
+            "page": "start",
+            "ru": "Посмотри на «Пуск». Теперь это hellOS.",
+            "en": "Look at Start. It's hellOS now."
         },
         {
             "id": "startStyle",
             "key": "bar.startStyle",
             "value": () => Config.bar.startStyle === "fullscreen" ? "win11" : "fullscreen",
-            "page": "bar",
-            "ru": "Открой «Пуск». Сюрприз! У него три вида, выбирается в «Панели».",
-            "en": "Open Start. Surprise! It has three styles, pick one in Bar settings."
+            "page": "start",
+            "ru": "Открой «Пуск». Сюрприз! У него пять видов, выбирается в настройках «Пуска».",
+            "en": "Open Start. Surprise! It has five looks, pick one in the Start settings."
         },
         {
             "id": "barEdge",
             "key": "bar.edge",
             "value": () => Config.bar.edge === "top" ? "bottom" : "top",
             "page": "bar",
-            "ru": "Я переставила тебе панель. Бывает снизу, сверху и сбоку — всё в «Панели».",
+            "ru": "Я переставила тебе панель. Бывает снизу, сверху и сбоку — всё в «Панели задач».",
             "en": "I moved your bar. It can live at the bottom, on top or on a side — see Bar settings."
         },
         {
@@ -1340,15 +1342,15 @@ Singleton {
             "value": () => "light",
             "can": () => Theme.night,
             "page": "appearance",
-            "ru": "Ослепила? Светлая тема! Обратно — Mod+Alt+T или «Тема и цвета».",
-            "en": "Blinded? Light theme! Back with Mod+Alt+T or in Theme and colours."
+            "ru": "Ослепила? Светлая тема! Обратно — Win+Alt+T или «Тема».",
+            "en": "Blinded? Light theme! Back with Win+Alt+T or in Theme."
         },
         {
             "id": "taskLabels",
             "key": "bar.taskLabels",
             "value": () => !Config.bar.taskLabels,
             "page": "bar",
-            "ru": "Кнопки окон на панели поменяла: подписи или только иконки — выбирается в «Панели».",
+            "ru": "Кнопки окон на панели поменяла: подписи или только иконки — выбирается в «Панели задач».",
             "en": "I changed the window buttons: titles or icons only, it's in Bar settings."
         },
         {

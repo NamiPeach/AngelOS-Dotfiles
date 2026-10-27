@@ -24,22 +24,73 @@ PxMenu {
     // a desktop widget's own menu (openWidget): its uid; "" = the desktop's
     property string widgetUid: ""
     readonly property bool own: widgetUid !== ""
+    // a window's menu (openWindow: a right click on its title bar in the stacking mode)
+    property var win: null
     // built once as it opens: rebuilt on every change, the rows would lose the keyboard's place
     function build() {
-        const m = DeskMenu.menu(own ? "widget" : "desktop", {
+        const m = DeskMenu.menu(win ? "task" : own ? "widget" : "desktop", {
             "screen": screenName,
             "uid": widgetUid,
+            "win": win,
             "depthThings": own ? depthThings(widgetUid) : []
         });
         quick = m.quick;
         items = m.items;
     }
     function openWidget(uid, x, y) {
+        win = null;
         widgetUid = uid;
         build();
         show(x, y);
     }
+    function openWindow(w, x, y) {
+        win = w;
+        widgetUid = "";
+        build();
+        show(x, y);
+    }
+    // the green button's size menu (the pointer rests on it, angel-niri), like a Mac's
+    function openGreen(w, x, y) {
+        win = w;
+        widgetUid = "";
+        const id = w.id;
+        const ws = Niri.workspaceById(w.workspace_id);
+        // Mod+arrows' snaps (angel-niri's stacking), on that window
+        const half = dir => Shell.sh("niri msg action focus-window --id " + id + " && niri msg action focus-column-" + dir);
+        quick = [];
+        items = [
+            {
+                "label": I18n.t("Полный экран", "Full screen"),
+                "icon": "maximize",
+                "run": () => Niri.fullscreenWindow(id)
+            },
+            {
+                "label": I18n.t("Развернуть", "Maximize"),
+                "icon": "window",
+                "run": () => Niri.maximizeWindow(id)
+            },
+            {
+                "separator": true
+            },
+            {
+                "label": I18n.t("Левая половина", "Left half"),
+                "icon": "arrowLeft",
+                "run": () => half("left")
+            },
+            {
+                "label": I18n.t("Правая половина", "Right half"),
+                "icon": "arrowRight",
+                "run": () => half("right")
+            }
+        ].concat(Niri.workspaces.map(x => x.output).filter((o, i, a) => o && a.indexOf(o) === i && (!ws || o !== ws.output)).map(o => ({
+                "label": I18n.t("На монитор ", "To monitor ") + o,
+                "icon": "monitor",
+                "run": () => Niri.moveWindowToMonitor(id, o)
+            })));
+        show(x, y);
+    }
     function openAt(x, y) {
+        win = null;
         widgetUid = "";
         Achievements.note("deskmenu.open", DeskMenu.style);
         if (overlayStyle) {
@@ -63,9 +114,11 @@ PxMenu {
         return wall.layersAt(Qt.rect(f.x, f.y, f.width, f.height)).slice(0, 8);
     }
 
-    kind: own ? "widget" : "desktop"
+    kind: win ? "task" : own ? "widget" : "desktop"
     tileScale: k
     title: {
+        if (win)
+            return Niri.titleOf(win) || win.app_id || "";
         if (!own)
             return "";
         const w = DesktopWidgets.byUid(root.widgetUid);
@@ -79,7 +132,7 @@ PxMenu {
     footer: [
         Repeater {
             // QML menu components from plugins: on the desktop's menu, once switched on
-            model: root.own ? [] : Plugins.menuComponents.filter(p => DeskMenu.pluginOn(p.id + ":menu"))
+            model: root.own || root.win ? [] : Plugins.menuComponents.filter(p => DeskMenu.pluginOn(p.id + ":menu"))
             Loader {
                 required property var modelData
                 width: parent ? parent.width : 0

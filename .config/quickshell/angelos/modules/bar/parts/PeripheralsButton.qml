@@ -14,14 +14,16 @@ PxButton {
     id: root
 
     // screen readers (widgets/A11y.js): what these are
-    Accessible.name: I18n.t("Заряд устройств", "Device charge")
+    Accessible.name: I18n.t("Заряд беспроводных", "Wireless charge")
     Accessible.description: Peripherals.shown.map(d => d.name + " " + d.percent + "%" + (d.charging ? I18n.t(", заряжается", ", charging") : "")).join("; ")
 
     property bool above: true
     // a taskbar on a side edge (BarItem): one under another
     property bool vertical: false
     // the bar's cell is `height`; the ampoules take what is left of it above the shelf
-    readonly property int fit: vertical ? 13 : Math.max(9, Math.min(15, Math.floor(height / Theme.u) - 2))
+    // in the bar's grid (BarItem): as tall as the icons beside it
+    property bool barGrid: false
+    readonly property int fit: barGrid && !barInk ? 9 : vertical ? 13 : Math.max(9, Math.min(15, Math.floor(height / Theme.u) - 2))
 
     compact: true
     flat: true
@@ -40,6 +42,7 @@ PxButton {
         rows: root.fit
         vertical: root.vertical
         barInk: root.barInk
+        plain: root.barGrid && !root.barInk
     }
 
     // built when the pointer comes to the button, gone a while after it closed (LazyPopup)
@@ -53,7 +56,7 @@ PxButton {
             panelId: "peripherals"
             anchorItem: root
             above: root.above
-            title: I18n.t("Заряд устройств", "Device charge")
+            title: I18n.t("Заряд беспроводных", "Wireless charge")
             icon: "ampoule"
             contentWidth: Theme.u * 150
             contentHeight: col.implicitHeight

@@ -80,6 +80,10 @@ IpcHandler {
     function lensOn(cmd: string, screen: string): void {
         Lens.cmd(cmd, screen);
     }
+    // the chalk: on while its key is held, off when let go (services/Chalk)
+    function chalk(cmd: string): void {
+        Chalk.hold(cmd === "on");
+    }
     // show where the pointer is, as if the mouse were shaken (a niri bind can call it)
     function findCursor(): void {
         CursorShake.demo();
@@ -143,6 +147,26 @@ IpcHandler {
             "auto": Config.stream.privacyAuto,
             "apps": Privacy.apps
         });
+    }
+    // the pause for viewers (services/Privacy.pause): on | off | toggle | status
+    function castPause(mode: string): string {
+        if (!Privacy.nativeLook)
+            return "needs angel-niri";
+        if (["on", "off", "toggle"].includes(mode))
+            Privacy.pause(mode);
+        else if (mode !== "status" && mode !== "")
+            return "on | off | toggle | status";
+        return Privacy.paused ? "paused" : "live";
+    }
+    // Desktop or the Strip (angel-niri's stacking mode, Settings → Windows, services/WindowConfig): on | off | toggle | status
+    function stacking(mode: string): string {
+        if (!Niri.nativeMinimize)
+            return "needs angel-niri";
+        if (["on", "off", "toggle"].includes(mode))
+            WindowConfig.setFloatAll(mode === "toggle" ? !WindowConfig.floatAll : mode === "on");
+        else if (mode !== "status" && mode !== "")
+            return "on | off | toggle | status";
+        return WindowConfig.floatAll ? "on" : "off";
     }
     // stay awake (services/Awake): on | off | toggle | status — by hand; stream mode and
     // full-screen windows switch it by themselves (Settings → Lock → Stay awake)
@@ -474,13 +498,19 @@ IpcHandler {
         Config.workspaces.heartAnim = style;
         return "ok";
     }
-    // classic | win11 | fullscreen | xmb | spotlight
+    // classic | win11 | fullscreen | xmb | spotlight (the Win10 skin's Start is the tiles)
     function startStyle(style: string): string {
-        const styles = StartPrefs.styles;
+        const styles = StartPrefs.styles.filter(s => s !== "tiles");
         if (!styles.includes(style))
             return "styles: " + styles.join(", ");
         Config.bar.startStyle = style;
         return "ok";
+    }
+    // Mission Control (Mod+W, modules/mission): the windows of the desk laid out, the desks on top
+    function mission(): void {
+        if (Shell.setupLocked)
+            return;
+        Mission.toggle();
     }
     function launcher(): void {
         if (Shell.setupLocked)
@@ -514,6 +544,13 @@ IpcHandler {
     // the day's timelapse: on | off | build (today so far)
     function timelapse(mode: string): void {
         Timelapse.set(mode);
+    }
+    // the whole focused screen / the focused window (Ctrl+Shift+2/3), kept as the overlay's shots
+    function shotScreen(): void {
+        Capture.shotWhole();
+    }
+    function shotWindow(): void {
+        Capture.shotWhole(-1);
     }
     // the screenshot (Mod+Shift+S, Print): the frozen screen to pick, read, search, save —
     // the focused screen, or a named one; circle/circleOn are its old names
@@ -636,6 +673,52 @@ IpcHandler {
             return "Settings are closed";
         const f = v.Window.window ? v.Window.window.activeFocusItem : null;
         return (v.grabToImage(r => r.saveToFile(path)) ? "ok (saving " + path + ")" : "grab failed") + "; focus: " + (f ? (f.objectName || String(f)) + (f.parent ? " in " + (f.parent.objectName || String(f.parent)) : "") : "none");
+    }
+    // what the open settings page shows, row by row (label · control · value), for comparing
+    // two builds of a page; "more" first opens its «Ещё…»
+    function settingsDump(arg: string): string {
+        const v = Shell.settingsView;
+        if (!v)
+            return "Settings are closed";
+        if (arg === "more") {
+            SettingsTree.setMoreOpen(v.settingsNav.settingsPage, true);
+            return "ok";
+        }
+        const out = [];
+        const kind = it => String(it).replace(/_QML.*|\(.*/, "");
+        const showing = it => {
+            for (let p = it; p && p !== v; p = p.parent)
+                if (!p.visible || p.opacity === 0)
+                    return false;
+            return true;
+        };
+        const walk = (it, depth) => {
+            if (!it || depth > 60)
+                return;
+            const k = kind(it);
+            if (showing(it)) {
+                if (k === "PxGroup" && it.title)
+                    out.push("## " + it.title);
+                else if (it.rowHeight !== undefined && it.labelWidth !== undefined)
+                    out.push("- " + it.label + (it.hint ? " (" + it.hint + ")" : ""));
+                else if (k === "PxToggle" || k === "PxCheck")
+                    out.push("    " + k + " " + it.checked + (it.text ? " " + it.text : ""));
+                else if (k === "PxSegmented" || k === "PxCombo")
+                    out.push("    " + k + " " + JSON.stringify(it.currentValue) + " " + JSON.stringify((it.model || []).map(m => typeof m === "object" ? m.value : m)));
+                else if (k === "PxSlider" || k === "PxSpin")
+                    out.push("    " + k + " " + it.value + " [" + it.from + ".." + it.to + "]");
+                else if (k === "PxField")
+                    out.push("    PxField " + JSON.stringify(it.text));
+                else if (k === "PxButton")
+                    out.push("    PxButton " + (it.text || it.icon) + (it.enabled ? "" : " (off)"));
+                else if ((k === "PxText" || k === "Note") && it.text)
+                    out.push("    “" + String(it.text).slice(0, 80) + "”");
+            }
+            for (const c of it.children)
+                walk(c, depth + 1);
+        };
+        walk(v, 0);
+        return out.join("\n");
     }
     // a desktop widget's two copies (DesktopWidgetHost face/input), for diagnostics
     function widgetState(uid: string): string {
@@ -769,13 +852,22 @@ IpcHandler {
             "underMore": Object.keys(n.more)
         });
     }
-    // how Settings lay the pages out: Windows 11, or System Settings under Golden Gate (no choice)
+    // the Settings window's look: `angelos settingsView win11|p5` (no argument: which one; under
+    // Golden Gate it is System Settings whatever is picked). Comes with the next opening
     function settingsView(view: string): string {
-        return GoldenGate.on ? "mac" : "win11";
+        const looks = ["win11", "p5"];
+        const v = String(view || "").trim().toLowerCase();
+        if (v === "")
+            return (GoldenGate.on ? "mac" : SettingsLook.picked) + "  (" + looks.join(" | ") + ")";
+        if (!looks.includes(v))
+            return "unknown view " + v + ": " + looks.join(" | ");
+        Config.settingsUi.look = v;
+        Config.settingsUi.lookAsked = true;
+        return "ok";
     }
     // what Settings wear: `angelos settingsSkin windose` (no argument: which one)
     function settingsSkin(skin: string): string {
-        const skins = ["classic", "windose", "stream", "goldengate"];
+        const skins = ["classic", "win10", "windose", "stream", "goldengate"];
         const s = String(skin || "").trim().toLowerCase();
         if (s === "")
             return Config.settingsUi.skin + "  (" + skins.join(" | ") + ")";
@@ -826,6 +918,21 @@ IpcHandler {
     }
     // ⌘M of the Golden Gate skin's Mac shortcuts: the frontmost window goes to the Dock
     // (services/Minimize); with a window id: that one. "restore <id>" brings one back.
+    // the focused window minimized (the pixel keys' Mod+Z); back from the taskbar or Alt+Tab
+    function minimize(): string {
+        const w = Niri.focusedWindow;
+        if (Shell.setupLocked || !w)
+            return "nothing to minimize";
+        Minimize.request(w.id, "keys");
+        return "ok";
+    }
+    // Mod+D: show the desktop of the focused screen, again to bring the windows back
+    function showDesktop(): string {
+        if (Shell.setupLocked)
+            return "locked";
+        DeskMenu.showDesktop(Niri.focusedOutput);
+        return "ok";
+    }
     function macMinimize(): string {
         if (!GoldenGate.on || !AppMenu.window)
             return "nothing to minimize";

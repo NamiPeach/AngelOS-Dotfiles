@@ -68,6 +68,11 @@
 #   SMOOTH_MEMORY=1|0              kernel memory settings that keep the picture from freezing when
 #                                  RAM fills up (extras/smooth-memory, a sysctl file; default 1)
 #   SKIP_PACKAGES=0|1              skip `pacman -Syu`
+#   ANGEL_NIRI=1|0                 angel-niri, angelOS's fork of niri (minimize, pixel looks, the
+#                                  stream's privacy looks and pause, tearing in games): downloaded
+#                                  (SHA256-checked) or built, started from the next login instead
+#                                  of the niri package (default 1; undo:
+#                                  ~/.config/quickshell/angelos/scripts/angel-niri-install.sh off)
 #   INSTALL_VOXTYPE=0|1            voice input binary (checksum-verified download)
 #   DOWNLOAD_VOXTYPE_MODEL=0|1     Whisper large-v3-turbo model (~1.6 GB)
 #   WALLPAPER_PACKS=all|none|Lain,Pixel,…
@@ -81,6 +86,7 @@
 #   INTRO_SOUNDS=1|0               mix the first run's intro sound now, in the background
 #   MINIMIZE_HOOK=1|0              the windows' own minimize buttons reach angelOS
 #                                  (extras/minimize-hook: an LD_PRELOAD library, needs gcc)
+#   DISCORD_SHIELD=1|0             with a mixer (RØDECaster…), Discord streams don't crash on sound
 #   INSTALL_FLATPAK=0|1            (older switch, ignored: OBS and Blender are in the apps' catalog)
 #   INSTALL_TOOLS=1|0              small everyday tools from packages/tools.txt (fish, btop,
 #                                  ripgrep, yt-dlp, pavucontrol…; asked interactively, default 1;
@@ -152,6 +158,7 @@ DOWNLOAD_VOXTYPE_MODEL="${DOWNLOAD_VOXTYPE_MODEL:-1}"
 INSTALL_WALLPAPERS="${INSTALL_WALLPAPERS:-1}"
 INTRO_SOUNDS="${INTRO_SOUNDS:-1}"
 MINIMIZE_HOOK="${MINIMIZE_HOOK:-1}"
+DISCORD_SHIELD="${DISCORD_SHIELD:-1}"
 WALLPAPERS_REPO="${WALLPAPERS_REPO:-https://github.com/MixaDoDs/PixelStreetArt_Wallpapers}"
 # folder|pictures|MB|English|Russian — folders of WALLPAPERS_REPO, copied to ~/Pictures/<folder>
 WALLPAPER_LIST=(

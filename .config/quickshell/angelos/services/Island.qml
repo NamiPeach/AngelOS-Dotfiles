@@ -154,7 +154,7 @@ Singleton {
     // a picture to Google Lens: a page of ours posts it (the PNG inline), the results come back here
     readonly property string lensFile: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/angelos-island-lens.html"
     function lensPage(b64, ts, mime) {
-        return '<!doctype html><meta charset="utf-8"><title>Google Lens…</title>' + '<body style="background:#16141c;color:#d8d0ea;font:16px sans-serif;display:grid;place-items:center;height:100vh;margin:0">' + '<form id="f" method="post" enctype="multipart/form-data" action="https://lens.google.com/v3/upload?ep=ccm&amp;st=' + ts + '">' + '<input type="file" name="encoded_image" id="i" hidden></form><p>Google Lens…</p><script>' + 'const b = atob("' + b64 + '"), a = new Uint8Array(b.length);' + 'for (let k = 0; k < b.length; k++) a[k] = b.charCodeAt(k);' + 'const dt = new DataTransfer(); dt.items.add(new File([a], "circle.png", {type: "' + mime + '"}));' + 'document.getElementById("i").files = dt.files; document.getElementById("f").submit();</script>';
+        return '<!doctype html><meta charset="utf-8"><title>Google Lens…</title>' + '<body style="background:#16141c;color:#d8d0ea;font:16px sans-serif;display:grid;place-items:center;height:100vh;margin:0">' + '<form id="f" method="post" enctype="multipart/form-data" action="https://lens.google.com/v3/upload?ep=ccm&amp;hl=' + Qt.locale().name.split("_")[0] + '&amp;st=' + ts + '">' + '<input type="file" name="encoded_image" id="i" hidden></form><p>Google Lens…</p><script>' + 'const b = atob("' + b64 + '"), a = new Uint8Array(b.length);' + 'for (let k = 0; k < b.length; k++) a[k] = b.charCodeAt(k);' + 'const dt = new DataTransfer(); dt.items.add(new File([a], "circle.png", {type: "' + mime + '"}));' + 'document.getElementById("i").files = dt.files; document.getElementById("f").submit();</script>';
     }
     // a picture asked for while the last one is still read goes next (it was dropped); nothing to
     // send is said, not silent
@@ -280,7 +280,7 @@ Singleton {
             "cmd": "through",
             "on": on
         });
-        Quickshell.execDetached(["notify-send", "-a", "angelOS", "-t", "2500", "-i", "web-browser", on ? I18n.t("Остров пропускает клики", "The island lets clicks through") : I18n.t("Остров снова кликается", "The island takes clicks again"), on ? I18n.t("Вернуть: Mod+Alt+I", "Back: Mod+Alt+I") : ""]);
+        Quickshell.execDetached(["notify-send", "-a", "angelOS", "-t", "2500", "-i", "web-browser", on ? I18n.t("Мини-браузер пропускает клики", "The mini browser lets clicks through") : I18n.t("Мини-браузер снова кликается", "The mini browser takes clicks again"), on ? I18n.t("Вернуть: Mod+Alt+I", "Back: Mod+Alt+I") : ""]);
     }
 
     FileView {

@@ -20,6 +20,9 @@
               services/Game) | false (no block)
       streamAngel: true (Mod+Alt+A → the angel on stream: on the bar ⇄ hidden, and the rule
               that makes her window for OBS see-through on the screens) | false (no block)
+      chalk:  true (Mod+Alt+left button held → `angelos chalk on`, let go → `off`: the chalk, services/Chalk;
+              press/release binds, angel-niri only — on another niri `niri validate` fails and
+              nothing is written) | false (no block)
 
 Writers take a lock (the Alt+Tab and the lens services may write at the same time).
 
@@ -106,16 +109,28 @@ QT_END = "// <<< angelOS game off"
 GAME_OFF = "exec ~/.config/quickshell/angelos/bin/angelos game off"
 
 
+CH_BEGIN = "// >>> angelOS chalk (держи Mod+Alt+ЛКМ — мышь рисует, отпустил — тает; angel-niri)"
+CH_END = "// <<< angelOS chalk"
+CHALK = "exec ~/.config/quickshell/angelos/bin/angelos chalk "
+
+
+def read_chalk(text=None):
+    if text is None:
+        text = apps_path.read_text() if apps_path.exists() else ""
+    # by its start: the text after it named Mod+Alt+D before 26.10
+    return CH_BEGIN.split(" (")[0] in text
+
+
 def read_quit(text=None):
     if text is None:
         text = apps_path.read_text() if apps_path.exists() else ""
     return QT_BEGIN in text
 
 
-def render_keys(alttab, lens, quit=False, stream_angel=False):
-    """the Alt+Tab block (niri's switcher off), the lens and game-off markers, then one
+def render_keys(alttab, lens, quit=False, stream_angel=False, chalk=False):
+    """the Alt+Tab block (niri's switcher off), the lens, game-off and chalk markers, then one
     binds node with the keys of all (niri takes a single binds node per file)"""
-    if not alttab and not lens and not quit and not stream_angel:
+    if not alttab and not lens and not quit and not stream_angel and not chalk:
         return ""
     out = []
     if alttab == "mac":
@@ -127,6 +142,8 @@ def render_keys(alttab, lens, quit=False, stream_angel=False):
         out += [LS_BEGIN, "// the lens at the pointer: its keys are in the binds below", LS_END]
     if quit:
         out += [QT_BEGIN, "// out of angelOS's game at once: no angel, demon, novel or hell", QT_END]
+    if chalk:
+        out += [CH_BEGIN, "// the chalk: its key is in the binds below", CH_END]
     out += ["// angelOS keys (one binds node per file)", "binds {"]
     if alttab and alttab != "mac":
         out += [f'    Alt+Tab repeat=false hotkey-overlay-title="angelOS: Alt+Tab" {{ spawn-sh "{ANGELOS}next"; }}',
@@ -137,6 +154,8 @@ def render_keys(alttab, lens, quit=False, stream_angel=False):
                 f'    Mod+Alt+0 repeat=false hotkey-overlay-title="angelOS: убрать лупу" {{ spawn-sh "{LENS}close"; }}']
     if stream_angel:
         out += [f'    Mod+Alt+A repeat=false allow-inhibiting=false hotkey-overlay-title="angelOS: ангел на стриме — спрятать/показать" {{ spawn-sh "{STREAM_VIEW}"; }}']
+    if chalk:
+        out += [f'    Mod+Alt+MouseLeft hotkey-overlay-title="angelOS: мелок (держать)" {{ press {{ spawn-sh "{CHALK}on"; }}; release {{ spawn-sh "{CHALK}off"; }}; }}']
     if quit:
         out += [f'    Mod+Ctrl+Shift+Escape repeat=false allow-inhibiting=false hotkey-overlay-title="angelOS: выйти из игры" {{ spawn-sh "{GAME_OFF}"; }}']
     out += ["}", "// <<< angelOS keys", ""]
@@ -229,6 +248,26 @@ def render_stream_angel():
                       SA_END, ""])
 
 
+# the windows' frame: niri's focus ring around the focused one (its own default), a 2 px border
+# — one art pixel — around every window (the focused one in the accent, the others dark: the
+# colours are the theme's, ~/.config/niri/angelos.kdl), or none
+FRAMES = {
+    "focus": {"focus-ring": ["on", "width 4"], "border": ["off"]},
+    "all": {"focus-ring": ["off"], "border": ["on", "width 2"]},
+    "none": {"focus-ring": ["off"], "border": ["off"]},
+}
+
+
+def read_frame(text):
+    b = block(text, "border")
+    if b and re.search(r"^\s*on\s*$", text[b[0]:b[1]], re.M):
+        return "all"
+    f = block(text, "focus-ring")
+    if f and re.search(r"^\s*off\s*$", text[f[0]:f[1]], re.M):
+        return "none"
+    return "focus"
+
+
 def current():
     text = layout_path.read_text()
     presets = []
@@ -241,12 +280,14 @@ def current():
         "center": value(text, "center-focused-column", "never"),
         "defaultWidth": width_of(text[d[0]:d[1]]) if d else "",
         "presets": presets,
+        "frame": read_frame(text),
         "apps": read_apps(),
         "taskmgr": read_taskmgr(),
         "alttab": read_alttab(),
         "lens": read_lens(),
         "quit": read_quit(),
         "streamAngel": read_stream_angel(),
+        "chalk": read_chalk(),
     }
 
 
@@ -278,12 +319,12 @@ def set_block(text, name, lines):
     return new
 
 
-def render_apps(rules, taskmgr=None, alttab=False, lens=False, quit=False, stream_angel=False):
+def render_apps(rules, taskmgr=None, alttab=False, lens=False, quit=False, stream_angel=False, chalk=False):
     out = ["// Managed by angelOS → Настройки → Окна. Per-app default widths.", ""]
     for app, w in sorted(rules.items()):
         out += ["window-rule {", f'    match app-id=r#"^{re.escape(app)}$"#', f"    default-column-width {{ {w}; }}", "}", ""]
     return ("\n".join(out) + render_taskmgr(taskmgr) + (render_stream_angel() if stream_angel else "")
-            + render_keys(alttab, lens, quit, stream_angel))
+            + render_keys(alttab, lens, quit, stream_angel, chalk))
 
 
 def atomic_write(path, content):
@@ -300,7 +341,7 @@ def atomic_write(path, content):
 
 
 def apply(changes):
-    unknown = set(changes) - {"gaps", "center", "defaultWidth", "presets", "apps", "taskmgr", "alttab", "lens", "quit", "streamAngel"}
+    unknown = set(changes) - {"gaps", "center", "defaultWidth", "presets", "frame", "apps", "taskmgr", "alttab", "lens", "quit", "streamAngel", "chalk"}
     if unknown:
         raise ValueError("unknown keys: " + ", ".join(sorted(unknown)))
     layout = layout_path.read_text()
@@ -322,9 +363,14 @@ def apply(changes):
         if not ps:
             raise ValueError("need at least one preset")
         new_layout = set_block(new_layout, "preset-column-widths", ps)
+    if "frame" in changes:
+        if changes["frame"] not in FRAMES:
+            raise ValueError("invalid frame")
+        for name, lines in FRAMES[changes["frame"]].items():
+            new_layout = set_block(new_layout, name, lines)
 
     files = {layout_path: (layout, new_layout)} if new_layout != layout else {}
-    if any(k in changes for k in ("apps", "taskmgr", "alttab", "lens", "quit", "streamAngel")):
+    if any(k in changes for k in ("apps", "taskmgr", "alttab", "lens", "quit", "streamAngel", "chalk")):
         rules = read_apps()
         for app, w in (changes.get("apps") or {}).items():
             if not re.match(r"^[\w.+-]{1,120}$", app):
@@ -338,8 +384,9 @@ def apply(changes):
         lens = bool(changes["lens"]) if "lens" in changes else read_lens()
         quit = bool(changes["quit"]) if "quit" in changes else read_quit()
         stream_angel = bool(changes["streamAngel"]) if "streamAngel" in changes else read_stream_angel()
+        chalk = bool(changes["chalk"]) if "chalk" in changes else read_chalk()
         old_apps = apps_path.read_text() if apps_path.exists() else None
-        files[apps_path] = (old_apps, render_apps(rules, taskmgr, alttab, lens, quit, stream_angel))
+        files[apps_path] = (old_apps, render_apps(rules, taskmgr, alttab, lens, quit, stream_angel, chalk))
         cfg = config_path.read_text()
         if 'include "./cfg/angelos-windows.kdl"' not in cfg:
             anchor = 'include "./cfg/rules.kdl"'

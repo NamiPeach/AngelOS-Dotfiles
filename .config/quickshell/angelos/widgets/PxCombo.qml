@@ -7,11 +7,15 @@ import "A11y.js" as A11y
 // Dropdown. model: array of strings or {label, value, icon}.
 Item {
     id: root
+    // inside the P5 settings window: its colours (Theme.tone)
+    readonly property bool p5: settingsSkin === "p5"
 
     property var model: []
     property var currentValue
     property string placeholder: "—"
     readonly property string settingsSkin: Theme.settingsSkinFor(root.parent)
+    // the P5 settings window draws like the classic look, in its own colours
+    readonly property bool classicLike: settingsSkin === "classic" || settingsSkin === "p5"
     // the Golden Gate skin's System Settings: a Mac pop-up button (the value and ⌃⌄), a glass menu
     readonly property bool mac: settingsSkin === "goldengate"
     signal activated(var value)
@@ -29,14 +33,15 @@ Item {
     readonly property int currentIndex: items.findIndex(i => i.value === currentValue)
     readonly property string currentLabel: currentIndex >= 0 ? items[currentIndex].label : placeholder
 
-    implicitWidth: Theme.u * 100
+    // in a box marked fixedWidth (SettingRow's control column) no wider than it, as PxSegmented
+    implicitWidth: parent && parent.fixedWidth === true ? Math.min(Theme.u * 100, parent.width) : Theme.u * 100
     implicitHeight: mac ? GoldenGate.px(28) : Theme.sizeBody + Theme.u * 10
 
     PxBox {
         anchors.fill: parent
-        visible: root.settingsSkin === "classic"
+        visible: root.classicLike
         sunken: true
-        color: Theme.sunken
+        color: Theme.toneOf(root.settingsSkin, "sunken")
     }
     Rectangle {
         visible: root.mac
@@ -65,7 +70,7 @@ Item {
         }
     }
     Rectangle {
-        visible: root.settingsSkin !== "classic" && !root.mac
+        visible: !root.classicLike && !root.mac
         anchors.fill: parent
         radius: root.settingsSkin === "stream" ? Theme.u * 2 : 0
         color: root.settingsSkin === "stream" ? Theme.streamPanel : Theme.windoseSticker
@@ -88,7 +93,7 @@ Item {
         anchors.margins: Theme.u * 2
         width: height
         sunken: mouse.pressed
-        visible: root.settingsSkin === "classic"
+        visible: root.classicLike
         PxIcon {
             anchors.centerIn: parent
             name: "arrowDown"
@@ -96,7 +101,7 @@ Item {
         }
     }
     PxIcon {
-        visible: root.settingsSkin !== "classic" && !root.mac
+        visible: !root.classicLike && !root.mac
         anchors.centerIn: arrow
         name: "arrowDown"
         ink: root.settingsSkin === "stream" ? Theme.streamLive : Theme.windoseInk
@@ -125,7 +130,7 @@ Item {
             PxBox {
                 anchors.fill: parent
                 visible: !root.mac
-                color: Theme.face
+                color: Theme.toneOf(root.settingsSkin, "face")
                 shadow: true
             }
             MacGlass {
@@ -145,7 +150,7 @@ Item {
                 active: list.contentHeight > list.height
                 contentItem: Rectangle {
                     implicitWidth: Theme.u * 2
-                    color: Theme.text
+                    color: Theme.toneOf(root.settingsSkin, "text")
                     opacity: 0.5
                     visible: parent.active
                 }
@@ -157,7 +162,7 @@ Item {
                 width: list.width
                 height: Theme.sizeBody + Theme.u * 7
                 radius: root.mac ? GoldenGate.px(6) : 0
-                color: optMouse.containsMouse ? (root.mac ? GoldenGate.accent : Theme.select) : index === root.currentIndex && !root.mac ? Theme.faceAlt : "transparent"
+                color: optMouse.containsMouse ? (root.mac ? GoldenGate.accent : Theme.select) : index === root.currentIndex && !root.mac ? Theme.toneOf(root.settingsSkin, "faceAlt") : "transparent"
                 Row {
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.u * 4
@@ -170,7 +175,7 @@ Item {
                     }
                     PxText {
                         text: opt.modelData.label
-                        color: optMouse.containsMouse ? Theme.selectText : Theme.text
+                        color: optMouse.containsMouse ? Theme.selectText : Theme.toneOf(root.settingsSkin, "text")
                     }
                 }
                 MouseArea {

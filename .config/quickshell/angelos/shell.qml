@@ -23,9 +23,11 @@ import qs.modules.idle
 import qs.modules.sidebar
 import qs.modules.y2k
 import qs.modules.alttab
+import qs.modules.mission
 import qs.modules.cursor
 import qs.modules.cobweb
 import qs.modules.lens
+import qs.modules.chalk
 import qs.modules.circle
 import qs.modules.capture
 import qs.modules.quickshare
@@ -63,6 +65,7 @@ ShellRoot {
     UpdatePrompt {}
     MainScreenPrompt {}
     TelemetryPrompt {}
+    SettingsLookPrompt {}
     AppsSyncPrompt {}
     SetupWizard {}
     PluginHost {}
@@ -77,9 +80,11 @@ ShellRoot {
     CircleTransition {}
     BootScreen {}
     AltTabHost {}
+    MissionControl {}
     ShakeCursor {}
     CobwebOverlay {}
     LensOverlay {}
+    ChalkOverlay {}
     ShotPreview {}
     ShareSheet {}
     LensWindow {}
@@ -154,6 +159,7 @@ ShellRoot {
         Sounds.ready; // Y2K sound pack (generated on first use)
         StreamMode.active; // OBS watcher: stream mode while live
         QsVersion.state; // an outdated Quickshell: one notification per version (scripts/qs-version.sh)
+        Care.rebar; // Resizable BAR off in the BIOS: one notification each time it goes off (scripts/game-doctor.py rebar)
         Angel.demon; // the corner helper's schedule (tips, the demon's pranks)
         Achievements.loaded; // the achievements: counting starts with the shell (the game on only)
         Diary.loaded; // the Angel's diary: a page written later comes as a card (the game on only)
@@ -172,6 +178,7 @@ ShellRoot {
         Timers.loaded; // timers and pomodoros: one that ended while the shell was off still rings
         Capture.sorting; // niri's screenshots into month folders (scripts/screenshot-sort.py)
         Cobweb.enabled; // cobwebs on windows nobody moved for a while (Settings → Windows → Cobwebs)
+        AppSleep.wanted; // programs nobody sees go to sleep (scripts/app-sleep.py)
         Devices.holders; // the keyboard's lights follow the system's colour (no helper until needed)
         CircleHost.open; // the screenshot overlay's own process (scripts/circle-proc.sh), ready before the key
         Timelapse.on; // the day's timelapse: recording all day when on, glued at midnight (Settings → Screenshots)

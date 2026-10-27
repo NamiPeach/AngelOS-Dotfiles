@@ -48,6 +48,7 @@ Singleton {
             "bar.layout": ["Раскладка панели", "Bar layout"],
             "bar.hidden": ["Раскладка панели", "Bar layout"],
             "bar.startPinned": ["Закреплённое в «Пуске»", "Pinned in Start"],
+            "bar.startTiles": ["Размеры плиток «Пуска»", "Start tile sizes"],
             "bar.startButtons": ["Кнопки «Пуска»", "Start buttons"],
             "workspaces.names": ["Имена столов", "Workspace names"],
             "workspaces.switchFx": ["Анимация переключения", "Switch animation"],
@@ -55,8 +56,8 @@ Singleton {
             "appearance.fontTitle": ["Шрифты", "Fonts"],
             "appearance.fontBody": ["Шрифты", "Fonts"],
             "appearance.fontMono": ["Шрифты", "Fonts"],
-            "settingsUi.skin": ["Вид настроек", "Settings look"],
-            "settingsUi.view": ["Вид настроек", "Settings look"]
+            "settingsUi.skin": ["Скин рабочего стола", "Desktop skin"],
+            "settingsUi.look": ["Вид окна настроек", "Settings window look"]
         })
     function labelOf(path) {
         const e = extraLabels[path];

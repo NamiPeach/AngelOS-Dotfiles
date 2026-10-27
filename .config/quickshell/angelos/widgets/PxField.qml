@@ -5,6 +5,8 @@ import "A11y.js" as A11y
 
 Item {
     id: root
+    // inside the P5 settings window: its colours (Theme.tone)
+    readonly property bool p5: settingsSkin === "p5"
 
     property alias text: input.text
     property alias input: input
@@ -13,6 +15,8 @@ Item {
     property string icon: ""
     property string kind: "body"
     readonly property string settingsSkin: Theme.settingsSkinFor(root.parent)
+    // the P5 settings window draws like the classic look, in its own colours
+    readonly property bool classicLike: settingsSkin === "classic" || settingsSkin === "p5"
     // the Golden Gate skin's System Settings: a Mac field (a capsule with a magnifier for the
     // search, rounded otherwise), the accent's ring while typing
     readonly property bool mac: settingsSkin === "goldengate"
@@ -28,7 +32,8 @@ Item {
     signal editingFinished
     signal keyPressed(var event)
 
-    implicitWidth: Theme.u * 100
+    // in a box marked fixedWidth (SettingRow's control column) no wider than it, as PxSegmented
+    implicitWidth: parent && parent.fixedWidth === true ? Math.min(Theme.u * 100, parent.width) : Theme.u * 100
     implicitHeight: mac ? input.font.pixelSize + GoldenGate.px(14) : input.font.pixelSize + Theme.u * 10
 
     function focusField() {
@@ -55,12 +60,12 @@ Item {
     }
     PxBox {
         anchors.fill: parent
-        visible: root.settingsSkin === "classic"
-        color: Theme.sunken
-        edgeColor: input.activeFocus ? Theme.accent : Theme.edge
+        visible: root.classicLike
+        color: Theme.toneOf(root.settingsSkin, "sunken")
+        edgeColor: input.activeFocus ? Theme.accent : Theme.toneOf(root.settingsSkin, "edge")
     }
     Rectangle {
-        visible: root.settingsSkin !== "classic" && !root.mac
+        visible: !root.classicLike && !root.mac
         anchors.fill: parent
         radius: root.settingsSkin === "stream" ? Theme.u * 2 : 0
         color: root.settingsSkin === "stream" ? Theme.streamPanel : Theme.windoseSticker
@@ -83,7 +88,7 @@ Item {
         name: root.icon || "search"
         x: Theme.u * 5
         anchors.verticalCenter: parent.verticalCenter
-        ink: root.settingsSkin === "stream" ? Theme.streamLive : root.settingsSkin === "windose" ? Theme.windoseRose : Theme.dark ? Theme.text : Theme.edge
+        ink: root.settingsSkin === "stream" ? Theme.streamLive : root.settingsSkin === "windose" ? Theme.windoseRose : Theme.dark ? Theme.toneOf(root.settingsSkin, "text") : Theme.toneOf(root.settingsSkin, "edge")
     }
 
     TextInput {
@@ -95,7 +100,7 @@ Item {
         anchors.rightMargin: Theme.u * 5
         anchors.verticalCenter: parent.verticalCenter
         clip: true
-        color: Theme.text
+        color: Theme.toneOf(root.settingsSkin, "text")
         selectionColor: Theme.select
         selectedTextColor: Theme.selectText
         // handwritten in the grimoire (Theme.scriptWindows), like PxText

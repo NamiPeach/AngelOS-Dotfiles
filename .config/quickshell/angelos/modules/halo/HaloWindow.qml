@@ -48,10 +48,41 @@ PanelWindow {
     // (Settings → Halo → «Music without synced lyrics»): its title peeks 5 s on a new track or
     // a pause, then its cover and bars take the resting pill's right side (`musicEar`); beside
     // another event it stays a bubble
-    readonly property bool musicCapsule: Config.halo.musicSmart === false || Halo.peek || Halo.pauseFresh || (Halo.synced && lyricsHere)
+    // while its lyrics are still being looked for it keeps the pill too: after a start the search
+    // took minutes and the song sat as a cover on the side meanwhile (the owner, 25.10)
+    readonly property bool musicCapsule: Config.halo.musicSmart === false || Halo.peek || Halo.pauseFresh || ((Halo.synced || Lyrics.status === "loading") && lyricsHere)
     readonly property var items: baseItems.filter(i => i.kind !== "music" || musicCapsule || baseItems.some(o => !["music", "paused", "shelf"].includes(o.kind)))
     readonly property bool musicEar: Config.halo.showMusic !== false && Halo.music && Lyrics.playing && !items.some(i => i.kind === "music")
-    readonly property bool shown: (!full || items.length > 0) && (!Halo.hidden || items.some(i => i.kind === "ring"))
+    readonly property bool shown: (!full || items.length > 0) && (!Halo.hidden || items.some(i => i.kind === "ring")) && !(dodging && !peeking) && !mission
+    // Mission Control on this screen: its desks are where the Halo sits, the Halo stepped aside
+    // (it took their clicks)
+    readonly property bool mission: Mission.shown && Mission.screenName === modelData.name
+    // Settings → Halo → «Windows and the Halo» → hide: while a window on this screen's desk
+    // touches the top, the Halo slides away; the pointer at the top edge brings it back
+    readonly property bool dodging: Config.halo.windows === "hide" && !expanded && !Shell.dev && windowAtTop
+    readonly property bool windowAtTop: {
+        const ws = Niri.activeWorkspace(modelData.name);
+        if (!ws)
+            return false;
+        const half = pill.width / 2 + slack;
+        return Niri.windows.some(w => {
+            if (w.workspace_id !== ws.id || Minimize.isAppHidden(w))
+                return false;
+            const l = w.layout;
+            const pos = l && l.tile_pos_in_workspace_view;
+            // a tiled window starts at the very top (no strip in this mode)
+            if (!pos)
+                return true;
+            const mid = width / 2;
+            return pos[1] < strip && pos[0] < mid + half && pos[0] + l.tile_size[0] > mid - half;
+        });
+    }
+    property bool peeking: false
+    Timer {
+        id: peekEnd
+        interval: 900
+        onTriggered: win.peeking = hover.hovered
+    }
     readonly property bool lyricsHere: Lyrics.placeOn(modelData.name) === "halo"
 
     // the main thing: a timer's end, else the one picked from the bubbles, else the most urgent.
@@ -500,15 +531,37 @@ PanelWindow {
     // Normal said outright: a 0 at start (the strip off) doesn't change the zone, so Quickshell
     // never left Auto and the strip came back after every restart (#89)
     exclusionMode: ExclusionMode.Normal
-    exclusiveZone: Config.halo.reserve && !Shell.dev ? strip : 0
+    // «Around it» is niri's title bars stepping round it, Desktop's only: in the Strip it keeps the
+    // strip (the browser's tabs were under it, 26.10)
+    readonly property string zoneMode: Config.halo.windows === "maximized" && !WindowConfig.floatAll ? "bar" : Config.halo.windows || "bar"
+    exclusiveZone: Config.halo.reserve && zoneMode === "bar" && !Shell.dev ? strip : 0
+    onStripChanged: Halo.strip = strip
+    readonly property int notch: Math.ceil(closedW + u * 8)
+    onNotchChanged: Halo.notch = notch
+    Component.onCompleted: {
+        Halo.strip = strip;
+        Halo.notch = notch;
+        Tour.register("halo", hit, win);
+    }
+    Component.onDestruction: Tour.unregister("halo", hit)
     color: "transparent"
     WlrLayershell.namespace: "angelos-halo"
     // the keyboard only for the quick buttons' fields
-    WlrLayershell.keyboardFocus: expanded && (pages[page] === "buttons" || pages[page] === "shelf") && !menu && !dropping ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    // a reply typed into the notification's card (Notifs.replyTo): the keys go to its field
+    readonly property bool replying: !!Halo.flashNote && Notifs.same(Notifs.replyTo, Halo.flashNote)
+    function sendReply(text) {
+        if (String(text || "").trim() === "")
+            return;
+        Notifs.reply(Halo.flashNote, text);
+        Halo.flashDone();
+    }
+    WlrLayershell.keyboardFocus: replying ? WlrKeyboardFocus.Exclusive : expanded && (pages[page] === "buttons" || pages[page] === "shelf") && !menu && !dropping ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     // a full-screen window covers the Top layer: its timer's end comes over it
-    WlrLayershell.layer: full ? WlrLayer.Overlay : WlrLayer.Top
+    // under Mission Control while it is open here: hidden, its input region still took the
+    // clicks on the desks under it
+    WlrLayershell.layer: Shell.bootOpen || Shell.bootCover || mission ? WlrLayer.Top : WlrLayer.Overlay
     mask: Region {
-        item: win.shown ? hit : null
+        item: win.shown ? hit : win.dodging ? peekZone : null
         Region {
             item: win.shown && !win.expanded && win.others.length ? bubbleRow : null
         }
@@ -540,6 +593,11 @@ PanelWindow {
     // the open card's content starts under the window's title bar
     readonly property real cardTop: frame.chrome + frame.titleHeight + u * 4
     property real w: wantW
+    // snug at rest the sides differ: the pill moves by half the difference, the middle stays put
+    property real restShift: rest && !expanded && !(main || vol || seeking) && restRow.inRow ? (restRow.rightW - restRow.leftW) / 2 : 0
+    Behavior on restShift {
+        Spring {}
+    }
     property real h: wantH
     property real r: wantR
     Behavior on w {
@@ -629,6 +687,21 @@ PanelWindow {
     readonly property color textInk: Theme.text
     readonly property color textInkDim: Theme.textDim
 
+    // the top edge over the hidden pill (dodging): the pointer there brings the Halo back
+    Item {
+        id: peekZone
+        width: hit.width
+        height: win.u * 2
+        x: hit.x
+        HoverHandler {
+            enabled: win.dodging
+            onHoveredChanged: {
+                if (hovered)
+                    win.peeking = true;
+                peekEnd.restart();
+            }
+        }
+    }
     // where the pointer finds it: from the screen's very edge down (thrown up, the pointer stops
     // on the top row of pixels) and a little wider than the pill (or the ring at rest)
     Item {
@@ -642,7 +715,7 @@ PanelWindow {
         }
         width: (win.open ? pill.width : ring.width) + win.slack * 2
         height: Math.max(win.strip, (win.open ? pill.height : ring.height) + win.pillY + (win.expanded ? win.slack : win.u))
-        x: Math.round((win.width - width) / 2)
+        x: Math.round((win.width - width) / 2 + win.restShift)
 
         HoverHandler {
             id: hover
@@ -653,6 +726,8 @@ PanelWindow {
                 linger.stop();
             }
             onHoveredChanged: {
+                if (!hovered && win.peeking)
+                    peekEnd.restart();
                 if (hovered) {
                     win.hoverStale = false;
                     linger.stop();
@@ -901,7 +976,8 @@ PanelWindow {
                 id: beat
                 // the song plays in any capsule (a recording takes the pill first) or beside the rest
                 // (a song without synced lyrics: its cover at the side): the bass stays
-                readonly property bool here: (win.items.some(i => i.kind === "music") || win.musicEar) && !win.vol && !win.seeking && Halo.music && Lyrics.playing
+                // (the angel may keep the bass running with the glow off: Bass.angelListens)
+                readonly property bool here: Config.halo.bassGlow !== false && (win.items.some(i => i.kind === "music") || win.musicEar) && !win.vol && !win.seeking && Halo.music && Lyrics.playing
                 readonly property real m: win.bassHalo ? 8 : 0
                 x: -m * win.u
                 y: -m * win.u
@@ -974,9 +1050,17 @@ PanelWindow {
                 Item {
                     id: restRow
                     readonly property real gap: win.earsRest ? win.u * 14 : win.u * 6
-                    readonly property real sideW: Math.max(0, (width - restMid.width) / 2 - gap)
+                    // fixed width: the sides share what is left; snug (fixedWidth off) the Halo grows to
+                    // them, so no cap: a cap from its own width fed back through implicitWidth (a polish() loop)
+                    readonly property real sideW: win.fixedWidth ? Math.max(0, (width - restMid.width) / 2 - gap) : Infinity
                     anchors.fill: parent
-                    implicitWidth: (restL.visible ? restL.implicitWidth + gap : 0) + restMid.width + (restR.visible ? restR.implicitWidth + gap : 0)
+                    readonly property real leftW: restL.visible ? restL.implicitWidth + gap : 0
+                    readonly property real rightW: restR.visible ? restR.implicitWidth + gap : 0
+                    // snug, no ears: the pill hugs the three and moves over (win.restShift) so the
+                    // middle stays on the screen's centre; the ears keep it on the camera, room for
+                    // the wider side on both
+                    readonly property bool inRow: !win.fixedWidth && !win.earsRest
+                    implicitWidth: inRow ? leftW + restMid.width + rightW : restMid.width + 2 * Math.max(leftW, rightW)
                     // comes and goes in a pixel dissolve, the song's line the other way
                     readonly property bool on: win.rest && !win.expanded
                     property real vis: on ? 1 : 0
@@ -1047,7 +1131,8 @@ PanelWindow {
                         id: restMid
                         width: win.restCat ? restSprite.width : restArc.width
                         height: win.restCat ? restSprite.height : restArc.height
-                        anchors.centerIn: parent
+                        x: restRow.inRow ? (parent.width - restRow.implicitWidth) / 2 + restRow.leftW : (parent.width - width) / 2
+                        anchors.verticalCenter: parent.verticalCenter
                         Arc {
                             id: restArc
                             visible: !win.restCat
@@ -1270,6 +1355,11 @@ PanelWindow {
                 "run": () => Halo.hideFor(60 * 60 * 1000)
             },
             {
+                "label": I18n.t("Как тут всё устроено", "How it all works"),
+                "icon": "info",
+                "run": () => Tour.start(win.screen ? win.screen.name : "")
+            },
+            {
                 "label": I18n.t("Настройки Нимба…", "Halo settings…"),
                 "icon": "gear",
                 "run": () => Shell.openSettings("halo")
@@ -1277,7 +1367,8 @@ PanelWindow {
         ];
     }
 
-    // someone records the microphone (orange) or has the camera on (green), as on the iPhone:
+    // someone records the microphone (orange), has the camera on (green) or takes the screen
+    // (purple, as the Mac's screen recording), as on the iPhone:
     // a dot left of the pill or the arc (services/Sensors; Settings → Halo → «Privacy dot»)
     Item {
         id: privacy
@@ -1304,6 +1395,13 @@ PanelWindow {
                 height: win.u * 3
                 radius: win.u
                 color: "#30d158"
+            }
+            Rectangle {
+                visible: Sensors.screen.length > 0
+                width: win.u * 3
+                height: win.u * 3
+                radius: win.u
+                color: "#bf5af2"
             }
         }
         HoverHandler {
@@ -1467,6 +1565,11 @@ PanelWindow {
                 "icon": "bolt",
                 "text": Power.percent + "%"
             };
+        case "castPause":
+            return {
+                "icon": "pause",
+                "text": I18n.t("Зрители видят паузу", "Viewers see the pause")
+            };
         case "dl": {
             // the ring beside it and the percent; the bytes of one when nobody knows the size
             const far = Downloads.overall >= 0 ? Math.floor(Downloads.overall * 100) + "%" : n === 1 ? Downloads.bytes(Downloads.active[0].size) : "";
@@ -1503,6 +1606,11 @@ PanelWindow {
             return {
                 "icon": "sparkleStar",
                 "text": I18n.t("Сундук дня", "The day's chest")
+            };
+        case "place":
+            return {
+                "icon": "pin",
+                "text": item.app + " → " + I18n.t("стол ", "desk ") + item.desk
             };
         case "notif":
             return {
@@ -1661,9 +1769,20 @@ PanelWindow {
 
     // a little spectrum of pixel blocks (music.sh's, small): four columns dancing while it plays
     component EqBars: Row {
+        id: eq
         spacing: Math.max(1, win.u / 2)
+        // whole blocks on one shared timer, not an endless NumberAnimation per column: that one
+        // kept the whole Halo window drawing at the monitor's rate for four steps (22.10)
+        property int tick: 0
+        Timer {
+            interval: 130
+            repeat: true
+            running: eq.visible && Lyrics.playing && win.shown && !win.expanded && !Motion.still
+            onTriggered: eq.tick++
+        }
         Repeater {
-            model: [520, 380, 640, 450]
+            // each column's phase in the 1 → 4 → 1 swing
+            model: [0, 5, 2, 4]
             Item {
                 id: bar
                 required property int modelData
@@ -1671,7 +1790,7 @@ PanelWindow {
                 readonly property int gap: Math.max(1, win.u / 2)
                 width: blk
                 height: blk * 4 + gap * 3
-                property real v: 1
+                readonly property int v: 1 + [0, 1, 2, 3, 2, 1][(eq.tick + modelData) % 6]
                 Column {
                     anchors.bottom: parent.bottom
                     spacing: bar.gap
@@ -1684,20 +1803,6 @@ PanelWindow {
                             visible: index >= 4 - Math.round(bar.v)
                             color: Lyrics.playing ? Theme.mix(Theme.accent2, win.accent, (4 - index) / 4) : Theme.textDim
                         }
-                    }
-                }
-                SequentialAnimation on v {
-                    running: Lyrics.playing && win.shown && !win.expanded && !Motion.still
-                    loops: Animation.Infinite
-                    NumberAnimation {
-                        to: 4
-                        duration: bar.modelData
-                        easing.type: Easing.InOutSine
-                    }
-                    NumberAnimation {
-                        to: 1
-                        duration: bar.modelData
-                        easing.type: Easing.InOutSine
                     }
                 }
             }
@@ -2258,6 +2363,9 @@ PanelWindow {
         property real value: 0
         property bool paused: false
         property bool seekable: false
+        // a download's bar: RetroUI's crawling stripes over the trough of cells (the Win10 skin)
+        property bool striped: false
+        readonly property bool stripes: striped && !win.hell && Theme.win10
         signal seek(real frac)
         readonly property int cell: win.u * 3
         readonly property int gap: win.u
@@ -2268,10 +2376,25 @@ PanelWindow {
         Timer {
             interval: 120
             repeat: true
-            running: bb.value < 0 && !bb.paused && bb.visible && win.shown
+            running: !bb.stripes && bb.value < 0 && !bb.paused && bb.visible && win.shown
             onTriggered: bb.runAt = (bb.runAt + 1) % bb.n
         }
+        Rectangle {
+            visible: bb.stripes
+            width: parent.width
+            height: bb.cell
+            color: Qt.alpha(Theme.text, 0.16)
+            PxStripes {
+                width: bb.value < 0 ? parent.width : Math.round(parent.width * Math.max(0, Math.min(1, bb.value)))
+                height: parent.height
+                pixel: win.u
+                color: bb.paused ? Theme.textDim : win.accent
+                running: !bb.paused && win.shown
+                opacity: bb.value < 0 ? 0.5 : 1
+            }
+        }
         Row {
+            visible: !bb.stripes
             spacing: bb.gap
             Repeater {
                 model: bb.n
@@ -2480,8 +2603,10 @@ PanelWindow {
                 }
             }
             Row {
+                id: transport
                 spacing: win.u * 2
                 PxButton {
+                    id: prevBtn
                     compact: true
                     hell: win.hell
                     icon: "prev"
@@ -2506,14 +2631,25 @@ PanelWindow {
                     onClicked: Lyrics.player.next()
                 }
                 // osu!mini's rhythm mode on this track (plugin osu-mini, while it is on)
+                // the button's width with its word, measured unseen (a Row skips what isn't
+                // visible): in a narrow card the word goes and the note alone stays inside it
+                PxButton {
+                    id: rhythmProbe
+                    visible: false
+                    compact: true
+                    icon: "music"
+                    iconPixel: Math.max(1, win.u - 1)
+                    text: rhythmBtn.word
+                }
                 PxButton {
                     id: rhythmBtn
+                    readonly property string word: I18n.t("Ритм", "Rhythm")
                     visible: JSON.parse(Plugins.enabledIds).includes("osu-mini")
                     compact: true
                     hell: win.hell
                     icon: "music"
                     iconPixel: Math.max(1, win.u - 1)
-                    text: I18n.t("Ритм", "Rhythm")
+                    text: transport.parent.width >= prevBtn.width * 3 + transport.spacing * 3 + rhythmProbe.implicitWidth + (swap.visible ? swap.width + transport.spacing : 0) ? word : ""
                     enabled: Lyrics.playing
                     onClicked: {
                         Shell.gameAsk = "rhythm";
@@ -2620,7 +2756,8 @@ PanelWindow {
                 x: win.u * 4
                 y: win.u * 4
                 width: parent.width - win.u * 8
-                art: Math.round(Math.min((parent.width - win.u * 8) * 0.42, parent.height - win.u * 10 - (tileSpec.visible ? tileSpec.height : 0)) / win.u) * win.u
+                // the cassette is half as wide again as the cover: the same share of the tile
+                art: Math.round(Math.min((parent.width - win.u * 8) * 0.42 / ((Config.halo.musicView || "cover") === "cassette" ? 1.5 : 1), parent.height - win.u * 10 - (tileSpec.visible ? tileSpec.height : 0)) / win.u) * win.u
             }
             Spectrum {
                 id: tileSpec
@@ -2744,6 +2881,8 @@ PanelWindow {
         readonly property string kind: item ? item.kind : ""
         readonly property var t: win.timerOf(item)
         readonly property var s: win.simple(item)
+        // a notification's buttons besides «Open» (the default) and the reply
+        readonly property var noteButtons: kind === "notif" && Halo.flashNote ? Halo.flashNote.actions.filter(a => a.identifier !== "default" && a.identifier !== "inline-reply") : []
         spacing: win.u * 3
 
         // ---- a timer's end ----
@@ -2992,6 +3131,7 @@ PanelWindow {
                     width: parent.width
                     value: dlRow.f
                     paused: dlRow.modelData.paused
+                    striped: true
                 }
                 PxText {
                     width: parent.width
@@ -3010,8 +3150,69 @@ PanelWindow {
             dim: true
             text: I18n.t("Проценты появятся после перезапуска: ", "The percent comes after a restart of ") + Downloads.needRestart.join(", ")
         }
+        // a notification's own answers, as its corner card has them (NotificationCard): «Reply»
+        // with the field right here, the app's buttons («Remember», «Just this once»…), «Open»
+        Flow {
+            visible: card.kind === "notif" && !!Halo.flashNote && !win.replying && (Halo.flashNote.hasInlineReply || card.noteButtons.length > 0)
+            width: parent.width
+            spacing: win.u * 2
+            PxButton {
+                visible: !!Halo.flashNote && Halo.flashNote.hasInlineReply
+                compact: true
+                hell: win.hell
+                text: I18n.t("Ответить", "Reply")
+                onClicked: {
+                    Notifs.replyTo = Halo.flashNote;
+                    Qt.callLater(() => replyField.focusField());
+                }
+            }
+            Repeater {
+                model: card.noteButtons
+                PxButton {
+                    required property var modelData
+                    compact: true
+                    hell: win.hell
+                    text: modelData.text || modelData.identifier
+                    onClicked: {
+                        modelData.invoke();
+                        Notifs.dismissPopup(Halo.flashNote);
+                        Halo.flashDone();
+                    }
+                }
+            }
+        }
+        // the reply: Enter sends it, Esc puts the field away
         Row {
-            visible: !!card.s
+            visible: card.kind === "notif" && win.replying
+            width: parent.width
+            spacing: win.u * 2
+            PxField {
+                id: replyField
+                spell: true
+                width: parent.width - send.width - win.u * 2
+                anchors.verticalCenter: parent.verticalCenter
+                placeholder: Notifs.replyHint(Halo.flashNote) || I18n.t("Ответ… (Enter — отправить)", "Reply… (Enter sends)")
+                keepFocus: true
+                onAccepted: win.sendReply(text)
+                onKeyPressed: e => {
+                    if (e.key === Qt.Key_Escape) {
+                        Notifs.replyTo = null;
+                        e.accepted = true;
+                    }
+                }
+            }
+            PxButton {
+                id: send
+                compact: true
+                hell: win.hell
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.t("Отправить", "Send")
+                enabled: replyField.text.trim() !== ""
+                onClicked: win.sendReply(replyField.text)
+            }
+        }
+        Row {
+            visible: !!card.s && !win.replying
             anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
             spacing: win.u * 2
             PxButton {
@@ -3022,6 +3223,17 @@ PanelWindow {
                 onClicked: {
                     Notifs.open(Halo.flashNote);
                     Halo.flashDone();
+                    win.expanded = false;
+                }
+            }
+            PxButton {
+                visible: card.kind === "castPause"
+                compact: true
+                hell: win.hell
+                icon: "play"
+                text: I18n.t("Снова в эфир", "Back on air")
+                onClicked: {
+                    Privacy.pause("off");
                     win.expanded = false;
                 }
             }

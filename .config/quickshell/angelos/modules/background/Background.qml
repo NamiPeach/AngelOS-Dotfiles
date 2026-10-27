@@ -20,6 +20,10 @@ import qs.widgets
 //                       input copies (invisible unless a button in them is used,
 //                       see DesktopWidgetHost), the right-click menu and the
 //                       sparkle trail
+// and, under angel-niri while windows stand behind a layered wallpaper (services/SceneBehind),
+// a bottom-layer one:
+//   angelos-scene-behind — the scene's nearer layers once more over each such window (niri draws
+//                       it under this layer), click-through
 Variants {
     model: Shell.desktopHeld ? [] : Shell.screens
 
@@ -228,6 +232,30 @@ Variants {
                     Shell.desktopMenus = m;
                 }
             }
+            Loader {
+                active: win.modelData === Shell.screens[0]
+                sourceComponent: TitleIcons {}
+            }
+            // the pixel skins' genie into the taskbar (Golden Gate has its own in MacDesktop)
+            Loader {
+                active: !GoldenGate.on && Minimize.flightMs > 0
+                sourceComponent: MacMinimizeFx {
+                    modelData: win.modelData
+                }
+            }
+            // a right click on a window's title bar (angel-niri's stacking mode): its menu here
+            Connections {
+                target: Niri
+                function onWindowMenuRequested(id, output, pos, green) {
+                    const w = Niri.windows.find(x => x.id === id);
+                    if (w && output === win.modelData.name) {
+                        if (green)
+                            menu.openGreen(w, pos[0], pos[1]);
+                        else
+                            menu.openWindow(w, pos[0], pos[1]);
+                    }
+                }
+            }
 
             // the ring on the middle button, and the right-click menu's heaven's and hell's looks
             RadialMenu {
@@ -264,6 +292,74 @@ Variants {
                 screenName: scope.modelData.name
             }
             RightClickGuard {}
+        }
+
+        // the windows behind the scene (services/SceneBehind): its nearer layers over each of
+        // them, the very pixels the wallpaper draws there, so only where a window is under them
+        // do they show
+        PanelWindow {
+            id: front
+            readonly property string name: scope.modelData.name
+            readonly property Item wall: wallpaper.sceneItem
+            onWallChanged: SceneBehind.setWall(name, wall)
+            Component.onCompleted: {
+                SceneBehind.setWall(name, wall);
+                refresh();
+            }
+            // the windows' ids, kept as they are while only their places change, so a moved
+            // window's layers are not made again
+            property var ids: []
+            function refresh() {
+                const now = SceneBehind.windowsOn(name).map(x => x.id);
+                if (JSON.stringify(now) !== JSON.stringify(ids))
+                    ids = now;
+            }
+            Connections {
+                target: Niri
+                function onWindowsChanged() {
+                    front.refresh();
+                }
+                function onWorkspacesChanged() {
+                    front.refresh();
+                }
+            }
+            Connections {
+                target: SceneBehind
+                function onAppsChanged() {
+                    front.refresh();
+                }
+                function onOnChanged() {
+                    front.refresh();
+                }
+            }
+
+            screen: scope.modelData
+            visible: SceneBehind.on && !!wall && ids.length > 0
+            color: "transparent"
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+            exclusionMode: ExclusionMode.Ignore
+            WlrLayershell.layer: WlrLayer.Bottom
+            WlrLayershell.namespace: "angelos-scene-behind"
+            mask: Region {}
+
+            Repeater {
+                model: front.ids
+                SceneFront {
+                    required property var modelData
+                    readonly property var info: SceneBehind.windowsOn(front.name).find(x => x.id === modelData) || null
+                    readonly property string depth: info ? info.depth : ""
+                    // behind a thing: just under its z; a scene without that thing takes it by itself
+                    readonly property var thing: front.wall && depth.startsWith("behind:") ? front.wall.layers.find(l => l.id === depth.slice(7)) || null : null
+                    wall: info ? front.wall : null
+                    area: info ? info.rect : Qt.rect(0, 0, 0, 0)
+                    plane: !info || !front.wall ? Infinity : thing ? thing.z - 0.5 : front.wall.planeFor(info.rect, depth === "deep" ? 0.45 : 0.2)
+                }
+            }
         }
     }
 }

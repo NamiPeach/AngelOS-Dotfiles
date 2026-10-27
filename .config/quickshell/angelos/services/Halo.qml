@@ -47,6 +47,12 @@ Singleton {
             "l": 1.25
         })[Config.halo.size] || 1
 
+    // the height of the Halo's strip at the top (HaloWindow): the room niri keeps for snapped and
+    // maximized windows in Settings → Halo → «Windows and the Halo» → maximized (WindowConfig)
+    property int strip: 0
+    // and its closed width with some air: niri splits the title bars around it there (WindowConfig)
+    property int notch: 0
+
     // the right-click menu's «hide for an hour»: the pill and the ring go, the strip stays (the
     // windows don't jump)
     property double hiddenUntil: 0
@@ -117,7 +123,9 @@ Singleton {
     }
 
     // ---- notifications, the volume, calls (the owner's 16.10 answers) ----
-    // a notification: 3.5 s in the pill (held while its card is open); not over a hidden or
+    // a notification: in the pill until it is seen — the pointer on the pill or its card open
+    // (#106: 3.5 s and gone, missed by anyone away from the screen); the bell counts the unread
+    // (modules/bar/parts/Bell). Not over a hidden or
     // full-screen-hidden Halo (then the corner popup comes as before)
     readonly property bool takesNotifications: Config.ready && !!Config.halo.enabled && Config.halo.notify !== false && !hidden && !(gameOn && Config.halo.overFullscreen !== "timer")
     // somewhere a full-screen window (the Halo's screens): it hides there
@@ -162,8 +170,10 @@ Singleton {
                 }, 1500);
         }
     }
+    // the volume as it is, past 100 % too (#120: the keys go to 150 %, the pill said 100 %); the bar
+    // of blocks stops at full by itself
     function osdLevel(what) {
-        return what === "brightness" ? Backlight.level : what === "kbd" ? (Backlight.kbdMax > 0 ? Backlight.kbd / Backlight.kbdMax : 0) : what === "mic" ? (Audio.micMuted ? 0 : Audio.micVolume) : (Audio.muted ? 0 : Math.min(1, Audio.volume));
+        return what === "brightness" ? Backlight.level : what === "kbd" ? (Backlight.kbdMax > 0 ? Backlight.kbd / Backlight.kbdMax : 0) : what === "mic" ? (Audio.micMuted ? 0 : Audio.micVolume) : (Audio.muted ? 0 : Audio.volume);
     }
     // a call: a program from the list taking the microphone (PipeWire, services/Sensors). Its
     // capture may not say who it is: Discord's is «WEBRTC VoiceEngine», the program only in
@@ -312,6 +322,22 @@ Singleton {
                 root.flashOf("shot", {
                     "path": path
                 }, 4000);
+        }
+    }
+    // a pinned program opened on its place (Settings → Windows → Program places): a moment
+    Connections {
+        target: Niri
+        function onWindowOpened(id) {
+            const w = Niri.windows.find(x => x.id === id);
+            const pin = w && WindowConfig.remember ? WindowConfig.placeFor(w.app_id) : null;
+            const now = pin ? WindowConfig.placeOf(w) : null;
+            if (!now || now.output !== pin.output || now.idx !== pin.idx || Niri.windows.filter(x => x.app_id === w.app_id).length > 1)
+                return;
+            const e = DesktopEntries.heuristicLookup(w.app_id);
+            root.flashOf("place", {
+                "app": e ? e.name : w.app_id,
+                "desk": pin.idx
+            }, 2500);
         }
     }
     Connections {
@@ -485,7 +511,7 @@ Singleton {
     // a timer's end, an achievement, a moment's event, a recording, an update, downloads,
     // timers, the chest; the music (with its lyrics) is the least — in the pill only when nothing
     // else goes on; the shelf's stack is no event, it stays a bubble
-    readonly property var order: ["ring", "call", "trophy", "flash", "rec", "update", "dl", "chat", "timer", "chest", "music", "paused", "shelf"]
+    readonly property var order: ["ring", "call", "trophy", "flash", "castPause", "rec", "update", "dl", "chat", "timer", "chest", "music", "paused", "shelf"]
     function rank(item) {
         const i = order.indexOf(["pick", "net", "power", "dlDone", "updated", "notif", "osd"].includes(item.kind) ? "flash" : item.kind);
         return i < 0 ? order.indexOf("flash") : i;
@@ -511,6 +537,12 @@ Singleton {
             });
         if (flash)
             l.push(flash);
+        // the pause for viewers (Privacy.pause): on until switched off, so it can't be forgotten
+        if (Privacy.paused)
+            l.push({
+                "key": "castPause",
+                "kind": "castPause"
+            });
         if (H.showRec && Capture.recording)
             l.push({
                 "key": "rec",

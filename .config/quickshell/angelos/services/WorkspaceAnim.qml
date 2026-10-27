@@ -319,10 +319,40 @@ Singleton {
             }
             parser: SplitParser {
                 onRead: line => {
-                    const m = line.trim().match(/^ws ([0-9]{1,2}|up|down|prev)$/);
+                    // `ws <target> <press ms>`: a press older than socat's 1 s wait was already done by
+                    // niri itself (`angelos ws` falls back while the shell hangs) — doing it again on
+                    // waking threw the desks back and forth
+                    // wheel-*/carry-* are the wheel's (Mod: switch, Mod+Ctrl: carry the window along);
+                    // side-* its sideways turn (and Mod+Shift's): through the columns, nothing in
+                    // Desktop (niri would snap the window to an edge there, as Mod+arrows do)
+                    const m = line.trim().match(/^ws ([0-9]{1,2}|up|down|prev|wheel-up|wheel-down|carry-up|carry-down|side-left|side-right)(?: ([0-9]+))?$/);
+                    if (m && m[2] && Date.now() - Number(m[2]) > 800) {
+                        client.reply("err");
+                        return;
+                    }
                     // Alt+Tab shares the socket (services/AltTab): one hop instead of `qs ipc`
                     // (and ⌘Tab / ⌘` of the Golden Gate skin's Mac keys: apps, appsback, appwin, appwinback)
                     const a = line.trim().match(/^alttab (next|prev|cancel|apps|appsback|appwin|appwinback)$/);
+                    // the launcher, the clipboard and the session menu (`angelos open …`): their keys
+                    // answer ~40 ms sooner than through `qs ipc`
+                    const o = line.trim().match(/^open (launcher|clipboard|session|mission)$/);
+                    if (o) {
+                        client.reply("ok");
+                        if (Shell.setupLocked)
+                            return;
+                        if (o[1] === "mission")
+                            Mission.toggle();
+                        else
+                            Shell[o[1] + "Open"] = !Shell[o[1] + "Open"];
+                        return;
+                    }
+                    // the chalk's key, held and let go (services/Chalk)
+                    const ch = line.trim().match(/^chalk (on|off)$/);
+                    if (ch) {
+                        client.reply("ok");
+                        Chalk.hold(ch[1] === "on");
+                        return;
+                    }
                     // the lens at the pointer, too (services/Lens)
                     const l = line.trim().match(/^lens (in|out|close|toggle|refresh)$/);
                     if (l) {
@@ -333,7 +363,16 @@ Singleton {
                     const mac = !!a && /^app/.test(a[1]);
                     const ok = !!m || !!a && (AltTab.ours || mac);
                     client.reply(ok ? "ok" : "err");
-                    if (m)
+                    if (m && /^side-/.test(m[1])) {
+                        if (!WindowConfig.floatAll)
+                            Niri.action(m[1] === "side-left" ? "FocusColumnLeft" : "FocusColumnRight", {});
+                    } else if (m && /^(wheel|carry)-/.test(m[1])) {
+                        const [kind, dir] = m[1].split("-");
+                        if (kind === "wheel")
+                            root.go(dir);
+                        else
+                            Niri.action(dir === "up" ? "MoveColumnToWorkspaceUp" : "MoveColumnToWorkspaceDown", { focus: true }); // stock niri needs the field (#124)
+                    } else if (m)
                         root.go(m[1]);
                     else if (ok && a[1] === "cancel")
                         AltTab.cancel();

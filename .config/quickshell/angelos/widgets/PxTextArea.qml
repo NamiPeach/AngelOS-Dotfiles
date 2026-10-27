@@ -8,6 +8,9 @@ import "A11y.js" as A11y
 // offers what it could have been and «в словарь».
 Item {
     id: root
+    // inside the P5 settings window: its colours (Theme.tone)
+    readonly property bool p5: settingsSkin === "p5"
+    readonly property string settingsSkin: Theme.settingsSkinFor(root.parent)
     property alias text: editor.text
     property alias readOnly: editor.readOnly
     property alias input: editor
@@ -25,8 +28,8 @@ Item {
     PxBox {
         anchors.fill: parent
         sunken: true
-        color: Theme.sunken
-        edgeColor: editor.activeFocus ? Theme.accent : Theme.edge
+        color: Theme.toneOf(root.settingsSkin, "sunken")
+        edgeColor: editor.activeFocus ? Theme.accent : Theme.toneOf(root.settingsSkin, "edge")
     }
     Flickable {
         id: flick
@@ -45,7 +48,7 @@ Item {
             wrapMode: TextEdit.Wrap
             textFormat: TextEdit.PlainText
             selectByMouse: true
-            color: Theme.text
+            color: Theme.toneOf(root.settingsSkin, "text")
             selectionColor: Theme.select
             selectedTextColor: Theme.selectText
             font.family: root.monospace ? Theme.fontMono : Theme.fontBody

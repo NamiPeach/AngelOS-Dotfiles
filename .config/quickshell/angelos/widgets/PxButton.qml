@@ -21,6 +21,8 @@ Item {
     // cell; the icon is its outline in the icon colour, the accent only for a state (open, on,
     // the strike of "off")
     property bool barInk: false
+    // no face of its own at all (its host draws one: the taskbar's Win10-like buttons)
+    property bool bare: false
     // the face while pressed or on (classic skin): unset = the accent-tinted one; the Start
     // button sets a darker face so its accent-coloured logo still reads when it is pushed in
     property color downColor: "transparent"
@@ -30,6 +32,9 @@ Item {
     // the Golden Gate skin's System Settings: a Mac push button (white, a hairline, the accent when
     // it is the default or picked), line icons where angelOS's pixel ones have a match
     readonly property bool mac: settingsSkin === "goldengate" && !root.barInk
+    // the P5 settings window: a slanted paper plate on a black shadow — black when on, the
+    // accent under the pointer (P5Slant)
+    readonly property bool p5: settingsSkin === "p5" && !root.barInk && !root.hell
     readonly property string macIcon: mac && icon !== "" ? MacIcons.fromPixel(icon) : ""
     property int iconPixel: Theme.u
     property bool middleButton: false      // also report middle clicks (task buttons close windows with them)
@@ -57,7 +62,10 @@ Item {
 
     // left + right padding; -1 = by `compact` (the bar's dense right side sets it)
     property real hpad: -1
-    implicitWidth: row.implicitWidth + (hpad >= 0 ? hpad : mac ? GoldenGate.px(compact ? 16 : 24) : compact ? Theme.u * 6 : Theme.pad * 2 + Theme.u * 2)
+    readonly property real pads: hpad >= 0 ? hpad : mac ? GoldenGate.px(compact ? 16 : 24) : compact ? Theme.u * 6 : Theme.pad * 2 + Theme.u * 2
+    // at most this wide (0: as wide as the words): past it the words elide
+    property real maxWidth: 0
+    implicitWidth: row.implicitWidth + pads
     implicitHeight: mac ? Math.max(row.implicitHeight + GoldenGate.px(10), GoldenGate.px(compact ? 24 : 28)) : Math.max(row.implicitHeight + Theme.u * (compact ? 5 : 8), Theme.u * (compact ? 11 : 15))
     opacity: enabled ? 1 : 0.45
 
@@ -68,7 +76,7 @@ Item {
     }
     PxBox {
         anchors.fill: parent
-        visible: !root.barInk && root.settingsSkin === "classic" && (!root.flat || mouse.containsMouse || root.checked)
+        visible: !root.barInk && !root.bare && root.settingsSkin === "classic" && (!root.flat || mouse.containsMouse || root.checked)
         sunken: root.down
         hell: root.hell
         // the light theme: a raised button stands on a one-pixel ink shadow, a pressed one sits on the paper
@@ -77,6 +85,12 @@ Item {
         color: root.down && root.downColor.a > 0 && !root.hell && !root.accent && !root.danger ? root.downColor : root.hell ? (root.accent ? (mouse.containsMouse ? Qt.lighter(Theme.hellBlood, 1.15) : Theme.hellBlood) : root.checked ? Theme.mix(Theme.hellFace, Theme.hellBlood, 0.45) : mouse.containsMouse ? Theme.mix(Theme.hellFace, Theme.hellEmber, 0.2) : Theme.hellFace) : root.accent ? (mouse.containsMouse ? Qt.lighter(root.tint, 1.08) : root.tint) : root.danger && mouse.containsMouse ? Theme.danger : root.checked ? Theme.mix(Theme.face, root.tint, Theme.dark ? 0.4 : 0.3) : mouse.containsMouse ? Theme.mix(Theme.face, root.tint, 0.12) : Theme.face
     }
 
+    P5Slant {
+        visible: root.p5 && (!root.flat || mouse.containsMouse || root.checked)
+        anchors.fill: parent
+        raised: !root.down && !root.flat
+        color: root.danger ? Theme.danger : root.checked ? Theme.p5Black : mouse.containsMouse || root.accent ? Theme.accent : Theme.p5Paper2
+    }
     Rectangle {
         visible: root.mac && (!root.flat || mouse.containsMouse || root.checked)
         anchors.fill: parent
@@ -129,6 +143,7 @@ Item {
         spacing: root.mac ? GoldenGate.px(6) : Theme.u * 3
 
         MacIcon {
+            id: macGlyph
             visible: root.macIcon !== ""
             name: root.macIcon || "circle-help"
             size: GoldenGate.px(15)
@@ -137,11 +152,12 @@ Item {
             color: root.accent || root.checked ? "#ffffff" : root.danger ? GoldenGate.lights[0] : GoldenGate.label
         }
         PxIcon {
+            id: glyph
             visible: root.icon !== "" && root.macIcon === ""
             name: root.icon || "heart"
             pixel: root.iconPixel
             anchors.verticalCenter: parent.verticalCenter
-            ink: root.barInk ? (root.checked ? Theme.hellAccent : Theme.hellBarIcon) : root.hell ? Theme.hellText : root.settingsSkin !== "classic" ? (root.accent || root.checked ? Theme.selectText : Theme.text) : root.accent ? Theme.selectText : (Theme.dark ? Theme.text : Theme.edge)
+            ink: root.barInk ? (root.checked ? Theme.hellAccent : Theme.hellBarIcon) : root.hell ? Theme.hellText : root.p5 ? (root.checked || root.danger ? Theme.p5Paper : Theme.p5Black) : root.settingsSkin !== "classic" ? (root.accent || root.checked ? Theme.selectText : Theme.text) : root.accent ? Theme.selectText : (Theme.dark ? Theme.text : Theme.edge)
             bad: root.barInk ? Theme.hellAccent : Theme.danger
             // the hell bar: the outline only, fills dropped (one weight for every icon)
             palette: root.barInk ? ({
@@ -154,11 +170,13 @@ Item {
         }
         PxText {
             visible: root.text !== ""
+            width: root.maxWidth > 0 ? Math.max(0, Math.min(implicitWidth, root.maxWidth - root.pads - (macGlyph.visible ? macGlyph.width + row.spacing : 0) - (glyph.visible ? glyph.width + row.spacing : 0))) : implicitWidth
+            elide: Text.ElideRight
             text: root.text
             kind: root.kind
             anchors.verticalCenter: parent.verticalCenter
-            color: root.barInk ? (root.checked ? Theme.hellAccent : Theme.hellText) : root.hell ? Theme.hellText : root.mac ? (root.accent || root.checked ? "#ffffff" : root.danger ? GoldenGate.lights[0] : GoldenGate.label) : root.settingsSkin !== "classic" ? (root.danger ? "#ffffff" : root.accent || root.checked ? Theme.selectText : Theme.text) : root.accent ? Theme.selectText : root.danger && mouse.containsMouse ? "#ffffff" : Theme.text
-            font.bold: root.checked && !root.mac
+            color: root.barInk ? (root.checked ? Theme.hellAccent : Theme.hellText) : root.hell ? Theme.hellText : root.p5 ? (root.checked || root.danger ? Theme.p5Paper : Theme.p5Black) : root.mac ? (root.accent || root.checked ? "#ffffff" : root.danger ? GoldenGate.lights[0] : GoldenGate.label) : root.settingsSkin !== "classic" ? (root.danger ? "#ffffff" : root.accent || root.checked ? Theme.selectText : Theme.text) : root.accent ? Theme.selectText : root.danger && mouse.containsMouse ? "#ffffff" : Theme.text
+            font.bold: (root.checked && !root.mac) || root.p5
         }
     }
 

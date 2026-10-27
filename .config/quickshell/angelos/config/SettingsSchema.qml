@@ -54,8 +54,9 @@ JsonAdapter {
         property string clockFormat: "auto" // auto (12 h in English, 24 h in Russian) | 24 | 12
         property string startLabel: "angelOS"
         property string startButtonStyle: "classic" // the bar's Start button: classic (bevelled, the logo) | capsule (an XP-like "start" pill in the accent)
-        property string startStyle: "classic" // classic (Win98 list) | win11 (centred, pinned grid) | fullscreen (iPhone-like app grid) | xmb (PSP) | spotlight (a search pill)
+        property string startStyle: "classic" // classic (Win98 list) | win11 (centred, pinned grid) | tiles (Windows 10: all apps + live tiles) | fullscreen (iPhone-like app grid) | xmb (PSP) | spotlight (a search pill)
         property var startPinned: []        // desktop entry ids pinned in Start
+        property var startTiles: ({})       // Win10's tiles Start: by a tile's key (app id, ~music, ~weather) "small" | "wide" | "off" (taken off); "~own": the pins are yours (no top-up)
         // the buttons along Start's bottom, in order (services/StartItems.buttons; unknown ids are skipped):
         // downloads | lock | sleep | power | reboot | logout | settings | home | terminal | updates | idle
         property var startButtons: ["updates", "lock", "sleep", "power"]
@@ -90,6 +91,8 @@ JsonAdapter {
         property string taskRightClick: "menu" // menu (window menu with Close) | close (closes at once) | none
         property bool taskMiddleClose: true // middle click on a window button closes the window
         property bool taskHoverClose: false // × on the hovered window button
+        property var taskPinned: []         // app ids pinned to the taskbar: their buttons lead the row, starting the app while none runs
+        property var taskOrder: []          // Desktop: the taskbar's apps in the order dragged into
     }
 
     property JsonObject wallpaper: JsonObject {
@@ -98,6 +101,7 @@ JsonAdapter {
         property var outputs: ({})          // "DP-1" -> path
         property var workspaces: ({})       // "DP-1:2" -> path
         property string transition: "mosaic-dither" // mosaic-dither | mosaic | dither | none (only when the picture changes)
+        property var behindApps: [{"id": "spotify", "depth": ""}] // angel-niri: apps whose floating windows stand behind a layered scene's nearer things — [{id: app-id, depth: "" | "deep" | "behind:<layer id>"}] (services/SceneBehind)
         property int duration: 750
         // the verdict transition's word: "auto" (DESCEND into hell, ASCEND out of it, else
         // DESCEND), "off" (a halo instead), or any text of one's own
@@ -167,14 +171,29 @@ JsonAdapter {
         property string browserBar: ""
     }
 
-    // window menu (modules/bar/parts/WindowMenu.qml): "Make floating / Back to tiling" and
-    // "Maximize to edges" are off by default — they sit behind an experimental toggle that only
-    // shows in expert settings. Right-click on a window button without expert mode only gets you
-    // Fullscreen, Move to desk / monitor, Close, End task.
     property JsonObject windows: JsonObject {
-        property bool floatButtons: false   // experimental: floating + maximize buttons in the window menu
-        // every new window floats (a niri rule in angelos.kdl, ThemeExport); Golden Gate has its own (mac.floating)
+        // Desktop instead of the Strip: windows float with title bars (angel-niri's stacking; on
+        // plain niri a rule in angelos.kdl, ThemeExport); Golden Gate is always Desktop (WindowConfig)
         property bool floatAll: false
+        property bool desktopHintSeen: false // the first-time keys hint (modules/osd/Osd.qml) was shown
+        property bool pixelCorners: true    // angel-niri: square windows get pixel staircase corners (services/WindowConfig)
+        property bool inactiveDim: true     // angel-niri: a sparse grid of dark dots over the windows not in focus (services/WindowConfig)
+        property var dimOutputs: []         // the monitors with those dots; empty: every monitor
+        property bool pixelOverview: true   // angel-niri: the overview in pixels: sharp thumbnails, pixel frames and desk numbers (services/WindowConfig)
+        property bool pixelShadow: true     // angel-niri: dithered window shadows, the focused one glows in the accent (services/WindowConfig)
+        property bool remember: true        // angel-niri: programs pinned by hand open on their monitor and desk (services/WindowConfig)
+        property bool clipboardKeep: true   // angel-niri: the clipboard outlives the program it was copied from (services/WindowConfig)
+        property bool keepOnCopy: true      // angel-niri: a program doesn't minimize itself right after it copies (services/WindowConfig)
+        property bool deskThrow: true       // angel-niri: entering Desktop the windows of other desks fly in, the far ones break the screen (a broken LCD); leaving, they fly off (services/WindowConfig)
+        property string deskThrowFeel: "normal" // how hard: calm (they knock, nothing breaks) | normal | wild (further apart, trails, a bigger, longer break)
+        property string buttonLook: "glyphs" // the pixel skins' window buttons, niri's and GTK's: glyphs (× _ □) | keys (square keys); Golden Gate keeps its lights
+        // angel-niri: a floating window let go mid-drag flies on, bounces off the edges, squashes
+        // against them and sways like jelly while dragged (services/WindowConfig); each 0 = off
+        property bool throwOn: true
+        property real throwStrength: 1      // 0.3 barely slides … 2 crosses the screen
+        property real throwBounce: 0.5      // speed kept off an edge, 0 … 0.95
+        property real throwSquash: 1        // 0 … 2
+        property real throwWobble: 1        // 0 … 2
         // cobwebs (services/Cobweb): a window nobody moved for a while gets a spider and its web
         property bool cobweb: false         // off for a new user: a web over the window took its clicks (16.10)
         property bool cobwebInside: true    // the web over the window itself (off: only the bar's buttons)
@@ -187,6 +206,10 @@ JsonAdapter {
         property real cobwebBundles: 0   // long edge-to-edge bands (0–1.4)
         property real cobwebBridges: 1   // ties between neighbouring strands (0–2)
         property real cobwebGravity: 1   // thread sag (0–2.5)
+        // programs nobody sees go to sleep: frozen + squeezed into zram, messengers only nap (services/AppSleep)
+        property bool appSleep: true
+        property int appSleepMin: 15        // minutes out of sight before it sleeps
+        property string appSleepNever: ""   // more programs never put to sleep: "obsidian,strata" (app id or process name)
     }
 
     property JsonObject alttab: JsonObject {
@@ -203,6 +226,9 @@ JsonAdapter {
         property int offsetMs: 0
         property string artwork: "note"          // note | cover
         property bool typewriter: true
+        property int wordLeadMs: 250        // word by word: each word this much before it is sung, to sing along (Lyrics.wordLead)
+        property bool byWord: true
+        property bool onBeat: true          // word by word: each word on the music's beat or half-beat nearest its time (services/LyricsBeat hears the player)          // a line with its words' times appears word by word as it is sung (Lyrics.wordChars), not typed
         property string preferPlayer: "spotify"
         property var sources: ["local", "player", "lrclib", "amll", "netease", "kugou", "qq", "lrccx", "musixmatch", "ovh"] // tried in this order
         property int sourcesVersion: 0      // 2 = the list knows kugou/qq/local/player, 3 = amll/lrccx/musixmatch (older lists get them once)
@@ -446,9 +472,11 @@ JsonAdapter {
         property bool nautilusDefaults: false // angelOS Nautilus extensions + prefs applied once
         property bool strataDefaults: false // angelOS items in Strata's menu + its theme applied once (services/StrataSetup)
         property string qsWarned: ""        // the outdated Quickshell version already warned about (services/QsVersion)
+        property bool rebarWarned: false    // Resizable BAR off, already told; back to false once it is on (services/Care)
         property string primaryScreen: ""   // the main screen (widgets, the angel, the lock…); "" = the widest
         property bool primaryAsked: false   // asked once (MainScreenPrompt) where the main screen is, or it was picked already
         property var screenTune: ({})       // Monitor → Brightness and colour: {output: {brightness 0.3–1 (gamma), saturation −1…1 (NVIDIA vibrance)}} (services/ScreenTune)
+        property bool focusBoost: true      // the focused window's processes a few nice steps up, back when the focus leaves (niri-game-mode)
         property string helpAgent: ""       // Maintenance → Helper: claude | codex | opencode — the agent «Call the helper» starts with (scripts/help-agent.sh: out of a limit → the next account, Claude profiles → Codex → opencode); "" = Claude
     }
 
@@ -555,6 +583,7 @@ JsonAdapter {
         property bool rotationLock: false   // …held where it is
         property bool tabletKeyboard: true  // tablet mode starts the on-screen keyboard (wvkbd / squeekboard when installed)
         property bool fingerprint: true     // the lock takes a finger too (fprintd with an enrolled finger)
+        property bool batteryHz: false      // the laptop's screen (eDP) at about 60 Hz off the charger (services/Outputs, #120)
     }
 
     // touchpad gestures of angelOS's own (scripts/gesture-watch.py; niri keeps its 3-finger
@@ -569,10 +598,13 @@ JsonAdapter {
         property bool helper: true          // the pixel angel in a screen corner
         property string helperScreen: ""   // "" = the main screen (Shell.primaryScreen), "focus" = where the focus is
         property string helperTips: "rare" // off | rare | often
+        property bool nod: true             // the angel nods to the music's beat (services/Bass)
+        property bool lookAt: true          // her eyes follow the pointer (angel-niri: Niri.pointer)
         property bool helperGreeted: false
         property bool sparkles: true        // sparkle trail over the bare desktop
         property var sparkleScreens: []     // empty = every screen
         property bool sounds: true
+        property bool settingsMusic: true   // the P5 settings window's lounge loop (data/sounds/settings)
         property real soundVolume: 0.55
         property real helperVolume: 0.6     // the angel's / demon's voice, pips and effects, on top of soundVolume
         property var soundOff: ["click"]    // events kept quiet: startup notify error click shutdown angel
@@ -623,7 +655,7 @@ JsonAdapter {
         property bool hellBar: true         // the bar while the demon rules: each style's hell version (HellBarFrame: the circle's stone at the edges, calm plates under the content; the dock stays as it is)
         property bool hellLyrics: true      // the bar's lyrics while the demon rules: hell's blackletter in the circle's colour, no typewriter, no animation
         property string angelSkin: ""       // the angel's colours from heaven's prayers: "" | moon | mint | gold (services/HeavenStars)
-        property string angelLook: "glitch" // glitch (cracked halo, pictures) | chibi (the first pictures) | adult (30×40 pixels) | mini (the first 20×21); kept as picked while the story shows her otherwise (Angel.angelLook)
+        property string angelLook: "glitch" // glitch (cracked halo, pictures) | chibi (the first pictures) | mini (the first 20×21); kept as picked while the story shows her otherwise (Angel.angelLook)
         property string demonLook: "glitch" // the same for the demon (glitch: the sleepless neon one)
         property real helperScale: 1.0      // 0.75–2.00: Ctrl + mouse wheel, 5 % a notch; rendered size capped to screen (Y2K → Helper → Size)
     }
@@ -674,6 +706,10 @@ JsonAdapter {
         property int mouseRate: 0           // motion reports a second in games: 0 = the mouse as it is | 1000 | 2000 | 4000
         property string mouseDevice: ""     // a part of the mouse's /dev/input/by-id name ("" = the first USB mouse)
         property bool tuneNotes: true       // a new Steam game gets its note: Proton and launch options (services/GameTune)
+        property int backgroundFps: 30      // angel-niri: while a game runs, the other screens redraw at most this often (0 = as they are; niri-game-mode)
+        property bool tearing: true         // angel-niri: a fullscreen game's frames shown at once, not at the next vblank (niri-game-mode → set-tearing)
+        property bool pointerLock: true     // angel-niri: the pointer stays on a focused fullscreen game's screen, Mod lets it out (niri-game-mode → set-pointer-lock)
+        property bool gpuClocks: true       // NVIDIA: the graphics clock kept up while a game runs (niri-game-mode → scripts/gpu-clocks-setup.sh's helper)
     }
 
     // the novel (services/Novel, ~/AngelOs-Nov): chapters the angel plays out on the desktop
@@ -743,6 +779,10 @@ JsonAdapter {
         // the quick buttons page, in this order (services/HaloButtons.catalog has them all)
         property var buttons: ["pomodoro", "timer", "record", "picker", "note"]
         property bool reserve: true         // a strip of its own at the top: windows start below it, no tab is covered (the open card still lies over)
+        // with the strip (reserve): bar (like a Mac's menu bar: windows start and stay below it) |
+        // maximized (only maximized and snapped windows keep clear, the rest may go under) |
+        // hide (no strip: the Halo slides away while a window touches the top, back on hover)
+        property string windows: "bar"
         property bool browserBridge: true   // the browsers' download percent: their small extension (scripts/browser-downloads.py)
     }
 
@@ -788,10 +828,17 @@ JsonAdapter {
         property string chatLog: ""         // the folder of its *.jsonl logs ("" = off)
         property bool chatHalo: true        // each message a moment on the Halo, the cat there cheering
         property bool chatRunners: true     // a little cat with the nick runs along the bottom of the streamed screen
+        property bool chatRunnersViewersOnly: true // angel-niri: the cats only in the stream's capture, not on the monitor
         // privacy on stream (services/Privacy): the mode on by itself while OBS is live
         property bool privacyAuto: false
         property bool privacyPlates: true   // a «Privacy ON» plate over each hidden window, for the viewers alone (modules/y2k/PrivacyCast: OBS's window capture)
         property bool privacySet: false     // …and it was the stream that switched it on (off again when the stream ends)
+        // what the viewers see over a hidden window, drawn by angel-niri (services/Privacy:
+        // set-privacy-look): plate | mosaic | cat | angel | image | black; the picture for image;
+        // apps with their own {appId: {look, image}}
+        property string privacyLook: "plate"
+        property string privacyImage: ""
+        property var privacyApps: ({})
         // the angel on stream (services/StreamAngel, modules/y2k/AngelHelper): she sits on the
         // streamed screen's taskbar (its bottom edge when the bar is elsewhere) and talks with the mic
         property bool streamer: false
@@ -818,7 +865,11 @@ JsonAdapter {
         property string view: "win11"
         property bool win11Once: false      // an install still on the old default (sidebar) moved to win11 once
         property string viewPicked: ""      // the view picked in the setup wizard — the player's first choice, kept when changed later
-        property string skin: "classic"     // classic angelOS | Windose desktop | stream studio
+        property string skin: "classic"     // classic angelOS | win10 (classic + Windows 10 tiles, Theme.win10) | Windose desktop | stream studio | goldengate
+        // the Settings window's look (services/SettingsLook): win11 (the Windows 11 view, the default
+        // while P5 is being redone) | p5 (the P5 window over the desk); asked once (SettingsLookPrompt)
+        property string look: "win11"
+        property bool lookAsked: false
         property bool skinChosen: false     // the look was picked (the wizard, or the banner on the settings home)
         property var usage: ({})            // page id -> visits; "Everyday" on the home page follows it
         property var searchHistory: []      // what was searched and opened, newest first: [{q, title, page, icon}] (SettingsView: a click into the empty search shows it)
@@ -842,7 +893,6 @@ JsonAdapter {
         // not put over them (Shell.envFor; desktop ids or app ids)
         property var ownFrameApps: ["org.telegram.desktop", "TelegramDesktop", "com.ayugram.desktop", "io.github.kotatogram", "org.materialgram.desktop"]
         property bool keys: false           // Mac-style shortcuts: Golden Gate's key profile (cfg/keybinds-macos.kdl, services/KeyProfile) — offered, never imposed
-        property bool floating: true        // new windows float and overlap like on a Mac (off: niri's columns)
         property string minimizeEffect: "genie" // genie | scale — how a window goes to the Dock (modules/mac/MacMinimizeFx)
         property int dockSize: 48           // Dock icons, logical px
         property bool dockMagnify: true     // icons grow under the pointer

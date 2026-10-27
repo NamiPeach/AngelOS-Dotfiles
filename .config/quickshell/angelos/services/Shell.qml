@@ -516,6 +516,10 @@ Singleton {
         let cls = [];
         if (appId)
             cls = base === "foot" ? ["--app-id=" + appId] : base === "ghostty" ? ["--class=" + appId] : base === "wezterm" ? ["--class", appId] : base === "kitty" || base === "alacritty" ? ["--class", appId] : [];
+        // kitty as one process: a new window in ~6 ms instead of ~150 (it takes the caller's
+        // environment and folder along)
+        if (base === "kitty")
+            cls = ["--single-instance"].concat(cls);
         if (!argv || argv.length === 0)
             return [t].concat(cls);
         if (base === "kitty" || base === "foot")
@@ -640,6 +644,9 @@ Singleton {
     // leaves a black screen; a click on it takes it away too. The dev stand never sleeps the
     // machine: it plays the fade and only logs.
     property bool sleepFx: false
+    // logind said the machine goes down (modules/lock: PrepareForSleep true), until it wakes:
+    // the black stays up however long the freezing and the GPU take
+    property bool asleep: false
     function suspend() {
         if (sleepFx)
             return;
@@ -657,9 +664,13 @@ Singleton {
             root.sleepOff.restart();
         }
     }
+    // the suspend never happened (refused, an inhibitor): the picture comes back after a while
     property Timer sleepOff: Timer {
         interval: 4000
-        onTriggered: root.sleepFx = false
+        onTriggered: if (root.asleep)
+            restart();
+        else
+            root.sleepFx = false
     }
     onResumed: {
         sleepOff.stop();

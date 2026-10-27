@@ -91,12 +91,10 @@ Singleton {
                 list.push(w);
         if (Config.alttab.scope === "workspace") {
             const ws = Niri.activeWorkspace(Niri.focusedOutput);
-            list = list.filter(w => ws && w.workspace_id === ws.id);
+            // minimized ones stay in, as in Windows (they are off every desk)
+            list = list.filter(w => ws && w.workspace_id === ws.id || Minimize.isMinimized(w) && Minimize.outputOf(w) === Niri.focusedOutput);
         } else if (Config.alttab.scope === "output") {
-            list = list.filter(w => {
-                const ws = Niri.workspaceById(w.workspace_id);
-                return ws && ws.output === Niri.focusedOutput;
-            });
+            list = list.filter(w => Minimize.outputOf(w) === Niri.focusedOutput);
         }
         return list;
     }

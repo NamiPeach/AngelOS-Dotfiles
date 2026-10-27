@@ -152,12 +152,18 @@ review() {
   [[ "$DESKTOP_SHELL" == angelos ]] &&
     lines+=("$(_ '• you join the input group (the Meta key, the mouse in games) and a udev rule reads the charge of wireless mice' \
                  '• ты войдёшь в группу input (клавиша Meta, мышь в играх), правило udev читает заряд беспроводных мышей')")
+  [[ "$DESKTOP_SHELL" == angelos && "$DISCORD_SHIELD" == 1 ]] &&
+    lines+=("$(_ '• WirePlumber: with a mixer (RØDECaster and the like) Discord streams its mixes, not each program' \
+                 '• WirePlumber: с пультом (RØDECaster и похожие) Discord стримит его миксы, а не каждую программу')")
   if [[ "$INSTALL_GAMING" == 1 && "$SKIP_PACKAGES" != 1 ]]; then
     local g
     while IFS= read -r g; do
       [[ -n "$g" ]] && lines+=("• $(_ 'games' 'игры'): $g")
     done < <(bash "$ROOT/.config/quickshell/angelos/scripts/game-setup.sh" --plan 2>/dev/null || true)
   fi
+  [[ "${ANGEL_NIRI:-1}" == 1 ]] &&
+    lines+=("$(_ "• angel-niri, angelOS's own niri, is downloaded (~10 MB) and starts from the next login; the niri package stays" \
+                 "• скачается angel-niri, свой niri angelOS (~10 МБ), и запустится со следующего входа; niri из пакета остаётся")")
   lines+=("$(_ "• your configs that differ are kept or backed up (*.bak.$STAMP); a log: ${INSTALL_LOG/#$HOME_DIR/\~}" \
                "• твои отличающиеся конфиги остаются или уходят в копию (*.bak.$STAMP); журнал: ${INSTALL_LOG/#$HOME_DIR/\~}")")
   lines+=("$(_ '• about 10–30 minutes, mostly the download; the admin password is asked once' \

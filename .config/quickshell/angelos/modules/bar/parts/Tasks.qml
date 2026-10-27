@@ -1,11 +1,19 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Quickshell
+import Quickshell.Wayland
 import qs.config
 import qs.services
 import qs.widgets
 
-// Win98 task buttons for windows on this screen's active workspace (or all).
+// Win98 task buttons for windows on this screen's active workspace (or all; in Desktop every
+// window of this screen), one per app in Desktop: an app's windows share a button, a click on it
+// shows them (TaskPreview), the wheel brings them forward in turn; one per window in the Strip. Apps pinned to the taskbar (Config.bar.taskPinned) lead the row, with a button
+// that starts them while none runs. In Desktop the buttons keep their places and are dragged
+// into another order (Config.bar.taskOrder), as on Windows' taskbar.
+// Resting the pointer on a button shows its windows' pictures; a click on the window in front
+// minimizes it, as in Windows.
 // Titles show while every button still gets a readable width; when the windows
 // reach the lyrics or other widgets the row turns into icons, and when even the
 // icons don't fit it scrolls (mouse wheel, arrows at the edges).
@@ -24,13 +32,229 @@ Item {
     property bool barInk: false
     readonly property var ws: Niri.activeWorkspace(screenName)
     // the windows of the desktop in front, and the ones minimized on this screen (dimmed, a click
-    // brings one back — as Windows' taskbar keeps them); not an app hidden whole (⌘H)
-    readonly property var list: Niri.sortedWindows(Niri.windows.filter(w => !Minimize.isAppHidden(w) && (Config.bar.allWindows || (ws && w.workspace_id === ws.id) || minimizedHere(w))))
-    function minimizedHere(w) {
-        const h = Minimize.isMinimized(w) ? Niri.workspaceById(w.workspace_id) : null;
-        return !!h && h.output === screenName;
+    // brings one back — as Windows' taskbar keeps them); in Desktop every desk's of this screen;
+    // not an app hidden whole (⌘H)
+    readonly property var liveList: Niri.sortedWindows(Niri.windows.filter(w => !Minimize.isAppHidden(w) && (Config.bar.allWindows || (WindowConfig.floatAll ? Minimize.outputOf(w) === screenName : (ws && w.workspace_id === ws.id) || minimizedHere(w)))))
+    // niri sends a window update on every step of a resize or a move: the buttons are built
+    // again only when what they show changes (the order, the title, the focus, the alert)
+    readonly property string listKey: JSON.stringify(liveList.map(w => [w.id, w.app_id, w.title, w.is_focused, w.is_urgent, w.workspace_id, w.is_shaded]))
+    property var list: []
+    onListKeyChanged: {
+        list = liveList;
+        // the genie's landing places of windows that are gone (they'd pile up for the session)
+        const pre = screenName + "|@w";
+        for (const k of Object.keys(Minimize.dockSlots))
+            if (k.startsWith(pre) && !Niri.windows.some(w => pre + w.id === k))
+                delete Minimize.dockSlots[k];
     }
-    readonly property int count: list.length
+    function minimizedHere(w) {
+        return Minimize.isMinimized(w) && Minimize.outputOf(w) === screenName;
+    }
+    function appOf(w) {
+        return w.app_id || "#" + w.id;
+    }
+    // Desktop: a button per app, its windows in a group (as Windows' taskbar); the Strip: a button
+    // per window, as the columns stand
+    function keyOf(w) {
+        return stable ? appOf(w) : "@" + w.id;
+    }
+    // the windows by button
+    readonly property var byKey: {
+        const m = {};
+        for (const w of list)
+            (m[keyOf(w)] = m[keyOf(w)] || []).push(w);
+        return m;
+    }
+    // the pictures follow the button's windows: one closed or opened meanwhile, or the button
+    // gone (its last window closed by the × or the middle button — no "left" ever came)
+    onByKeyChanged: if (preview.visible) {
+        const a = preview.anchorItem;
+        const ws = a ? byKey[a.appKey] || [] : [];
+        if (ws.length)
+            preview.wins = ws;
+        else
+            preview.visible = false;
+    }
+    readonly property var pinned: (Config.bar.taskPinned || []).filter(k => typeof k === "string" && k !== "")
+    // Desktop: the buttons stay where they are — by when the app came, or as dragged; the Strip:
+    // in the order of the windows on the desk
+    readonly property bool stable: WindowConfig.floatAll
+    // the buttons' apps in order: the pinned ones, then the running ones
+    readonly property var keys: {
+        const run = [];
+        for (const w of stable ? list.slice().sort((a, b) => a.id - b.id) : list) {
+            const k = keyOf(w);
+            if (!run.includes(k) && !pinned.includes(appOf(w)))
+                run.push(k);
+        }
+        // the Strip: a pinned app's windows stand in its place, the pin itself only while none runs
+        let out = [];
+        for (const p of pinned) {
+            const ks = stable ? [] : list.filter(w => appOf(w) === p).map(keyOf);
+            out = out.concat(ks.length ? ks : [p]);
+        }
+        out = out.concat(run);
+        if (!stable)
+            return out;
+        const ord = Config.bar.taskOrder || [];
+        const at = k => ord.includes(k) ? ord.indexOf(k) : 1e6 + out.indexOf(k);
+        return out.slice().sort((a, b) => at(a) - at(b));
+    }
+    // the buttons' model: a button stays the same item while its app's windows change (a title,
+    // the focus), so the pointer on it and a drag aren't lost
+    ListModel {
+        id: rows
+    }
+    function rowIndex(k) {
+        for (let i = 0; i < rows.count; i++)
+            if (rows.get(i).appKey === k)
+                return i;
+        return -1;
+    }
+    function sync() {
+        const ks = keys;
+        for (let i = rows.count - 1; i >= 0; i--)
+            if (!ks.includes(rows.get(i).appKey))
+                rows.remove(i);
+        // the row as held while a drag goes on; in order once it is let go
+        if (dragKey !== "")
+            return;
+        for (let i = 0; i < ks.length; i++) {
+            const j = rowIndex(ks[i]);
+            if (j < 0)
+                rows.insert(i, {
+                    "appKey": ks[i]
+                });
+            else if (j !== i)
+                rows.move(j, i, 1);
+        }
+    }
+    onKeysChanged: sync()
+    readonly property int count: rows.count
+    function launch(appId) {
+        StartApps.launch(DesktopEntries.byId(appId) || DesktopEntries.heuristicLookup(appId));
+    }
+    // a pinned app's button with no window here: its window on another desk or screen comes up
+    // (as Windows' taskbar does), a new one starts only while none runs anywhere
+    function launchOrShow(appId) {
+        const w = Niri.windows.find(x => appOf(x) === appId && !Minimize.isAppHidden(x));
+        if (!w)
+            launch(appId);
+        else if (Minimize.isMinimized(w))
+            Minimize.restore(w.id, false, Minimize.outputOf(w));
+        else
+            Niri.focusWindow(w.id);
+    }
+    function unpin(appId) {
+        Config.bar.taskPinned = pinned.filter(k => k !== appId);
+    }
+
+    // ---- dragging a button along the row (Desktop) ----
+    property string dragKey: ""
+    property int dragFrom: -1           // its place as the drag began
+    property real dragShift: 0          // the pointer's offset from its place now
+    readonly property real step: (vertical ? cellH : buttonWidth) + spacing
+    function startDrag(k) {
+        preview.visible = false;
+        dwell.stop();
+        dragKey = k;
+        dragFrom = rowIndex(k);
+        dragShift = 0;
+        dragOrder = orderNow();
+    }
+    property var dragOrder: []
+    function orderNow() {
+        const ks = [];
+        for (let i = 0; i < rows.count; i++)
+            ks.push(rows.get(i).appKey);
+        return ks;
+    }
+    function dragTo(k, d) {
+        const now = rowIndex(k);
+        if (now < 0 || dragFrom < 0)
+            return;
+        const to = Math.max(0, Math.min(rows.count - 1, Math.round(dragFrom + d / step)));
+        if (to !== now)
+            rows.move(now, to, 1);
+        dragShift = (dragFrom - to) * step + d;
+    }
+    function letGo() {
+        if (dragKey === "")
+            return;
+        const ks = orderNow();
+        // a nudge that moved nothing writes nothing: the buttons keep coming in by arrival
+        // apps closed meanwhile keep their places after the ones here
+        if (ks.join("\n") !== dragOrder.join("\n"))
+            Config.bar.taskOrder = ks.concat((Config.bar.taskOrder || []).filter(k => !ks.includes(k))).slice(0, 64);
+        dragKey = "";
+        dragShift = 0;
+        sync();
+    }
+    // a click on a window: back if minimized, minimized if in front, else to the front
+    function activate(w) {
+        preview.visible = false;
+        // a window rolled up into its title (angel-niri's Desktop) comes back whole
+        if (w.is_shaded) {
+            Niri.action("SetWindowFlags", {
+                "id": w.id,
+                "shaded": false
+            });
+            if (!Minimize.isMinimized(w)) {
+                if (!w.is_focused)
+                    Niri.focusWindow(w.id);
+                return;
+            }
+        }
+        // back on this bar's screen, not wherever the focus is (DP-1 may be on air)
+        if (Minimize.isMinimized(w))
+            Minimize.restore(w.id, false, root.screenName);
+        else if (w.is_focused)
+            Minimize.request(w.id, "bar");
+        else
+            Niri.focusWindow(w.id);
+    }
+    // the pictures: after resting on a button a moment, at once while they already show
+    property Item hoverBtn: null
+    function hovering(btn, on) {
+        if (on) {
+            hoverBtn = btn;
+            if (preview.visible && preview.anchorItem !== btn)
+                showPreview(btn, false);
+            else if (!preview.visible)
+                dwell.restart();
+        } else if (hoverBtn === btn) {
+            hoverBtn = null;
+            dwell.stop();
+            leave.restart();
+        }
+    }
+    function showPreview(btn, pin) {
+        if (preview.anchorItem !== btn)
+            preview.visible = false;
+        preview.anchorItem = btn;
+        preview.wins = btn.wins;
+        preview.pinned = pin;
+        preview.visible = true;
+    }
+    Timer {
+        id: dwell
+        interval: 450
+        onTriggered: if (root.hoverBtn)
+            root.showPreview(root.hoverBtn, false)
+    }
+    Timer {
+        id: leave
+        interval: 300
+        onTriggered: if (!root.hoverBtn && !preview.hovered)
+            preview.visible = false
+    }
+    TaskPreview {
+        id: preview
+        above: root.above
+        onHoveredChanged: if (!hovered)
+            leave.restart()
+        onPicked: w => root.activate(w)
+    }
     readonly property int spacing: Theme.u * 2
     readonly property int iconWidth: height
     // a title button narrower than this shows two letters and an ellipsis — use icons instead
@@ -60,7 +284,7 @@ Item {
     function reveal() {
         if (!overflow || vertical)
             return;
-        const i = list.findIndex(w => w.is_focused);
+        const i = rowIndex(keys.find(k => (byKey[k] || []).some(w => w.is_focused)) || "");
         if (i < 0)
             return;
         const x0 = i * (buttonWidth + spacing), x1 = x0 + buttonWidth;
@@ -70,6 +294,10 @@ Item {
             scrollBy(x1 - flick.contentX - flick.width + Theme.u * 8);
     }
     onListChanged: Qt.callLater(reveal)
+    Component.onCompleted: {
+        list = liveList;
+        sync();
+    }
     onOverflowChanged: if (!overflow) {
         flick.contentX = 0;
         flick.contentY = 0;
@@ -99,53 +327,186 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
         pixelAligned: true
 
-        // a row; upright, a column (Grid of one column)
-        Grid {
+        // a row; upright, a column — each button at its index, gliding there while one is dragged
+        Item {
             id: row
-            columns: root.vertical ? 1 : Math.max(1, root.count)
-            spacing: root.spacing
+            width: flick.contentWidth
+            height: flick.contentHeight
 
             Repeater {
-                model: root.list
+                model: rows
                 PxButton {
                     id: btn
-                    required property var modelData
+                    // the app's windows; the one it stands for: in front, else the first. None: a
+                    // pinned app not running — a click starts it
+                    required property string appKey
+                    required property int index
+                    readonly property var wins: root.byKey[appKey] || []
+                    readonly property var win: wins.find(w => w.is_focused) || wins[0] || null
+                    readonly property bool ghost: !win
+                    readonly property bool group: wins.length > 1
+                    readonly property bool held: root.dragKey === appKey
+                    x: root.vertical ? 0 : index * root.step
+                    y: root.vertical ? index * root.step : 0
+                    z: held ? 1 : 0
+                    transform: Translate {
+                        x: btn.held && !root.vertical ? root.dragShift : 0
+                        y: btn.held && root.vertical ? root.dragShift : 0
+                    }
+                    Behavior on x {
+                        enabled: root.dragKey !== "" && !btn.held
+                        NumberAnimation {
+                            duration: Motion.ms(120)
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                    Behavior on y {
+                        enabled: root.dragKey !== "" && !btn.held
+                        NumberAnimation {
+                            duration: Motion.ms(120)
+                            easing.type: Easing.OutCubic
+                        }
+                    }
                     width: root.buttonWidth
                     height: root.vertical ? root.cellH : flick.height
                     barInk: root.barInk
-                    checked: modelData.is_focused
+                    checked: !!win && win.is_focused
+                    // the Win10 skin: Windows 10's buttons in pixels — flat, the one in front a shade
+                    // lighter on a wide accent strip, a running one a short dim strip, a minimized
+                    // one dimmed (below), a pinned one not running none
+                    bare: !root.barInk && Theme.win10
+                    Rectangle {
+                        visible: btn.bare && (btn.checked || btn.hovered)
+                        anchors.fill: parent
+                        color: Qt.alpha(Theme.text, btn.checked ? (btn.hovered ? 0.16 : 0.11) : 0.07)
+                    }
+                    Rectangle {
+                        visible: btn.bare && !btn.ghost
+                        readonly property int t: Math.max(2, Theme.u)
+                        readonly property real len: btn.checked ? 1 : 0.4
+                        x: root.vertical ? 0 : Math.round((btn.width - width) / 2)
+                        y: root.vertical ? Math.round((btn.height - height) / 2) : btn.height - height
+                        width: root.vertical ? t : Math.round((btn.width - Theme.u * 4) * len)
+                        height: root.vertical ? Math.round((btn.height - Theme.u * 4) * len) : t
+                        color: btn.checked ? Theme.accent : Qt.alpha(Theme.text, 0.45)
+                        Behavior on width {
+                            enabled: !root.vertical
+                            NumberAnimation {
+                                duration: Motion.ms(120)
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+                    DragHandler {
+                        enabled: root.stable
+                        target: null
+                        xAxis.enabled: !root.vertical
+                        yAxis.enabled: root.vertical
+                        onActiveChanged: active ? root.startDrag(btn.appKey) : root.letGo()
+                        onTranslationChanged: if (active)
+                            root.dragTo(btn.appKey, root.vertical ? translation.y : translation.x)
+                    }
+                    // a file or text dragged onto it: after a moment its window comes up, as in Windows
+                    DropArea {
+                        anchors.fill: parent
+                        enabled: !btn.ghost
+                        onEntered: raise.restart()
+                        onExited: raise.stop()
+                    }
+                    Timer {
+                        id: raise
+                        interval: 500
+                        onTriggered: if (btn.win)
+                            Minimize.isMinimized(btn.win) ? Minimize.restore(btn.win.id, false, root.screenName) : Niri.focusWindow(btn.win.id)
+                    }
                     // the pointer anywhere on the button, × included: the ×'s own MouseArea takes the
                     // hover from btn.hovered (a sibling), and hiding the × on that made it flicker
                     HoverHandler {
                         id: over
+                        onHoveredChanged: if (!btn.ghost || !hovered)
+                            root.hovering(btn, hovered)
                     }
                     middleButton: true
-                    readonly property bool minimized: Minimize.isMinimized(modelData)
+                    readonly property bool minimized: !ghost && wins.every(w => Minimize.isMinimized(w))
+                    // where it is on the screen, for the pixel genie (services/Minimize.dockSlots,
+                    // MacMinimizeFx): every window of the app lands here
+                    function report() {
+                        // its window's place from the layer-shell anchors, as BarLyrics.screenPoint()
+                        const w = btn.QsWindow.window;
+                        if (!w || !w.screen)
+                            return;
+                        const p = btn.mapToItem(null, btn.width / 2, btn.height / 2);
+                        const a = w.anchors || {}, m = w.margins || {};
+                        const sw = w.screen.width, sh = w.screen.height;
+                        const wx = a.left ? (m.left || 0) : a.right ? sw - w.width - (m.right || 0) : (sw - w.width) / 2;
+                        const wy = a.top ? (m.top || 0) : a.bottom ? sh - w.height - (m.bottom || 0) : (sh - w.height) / 2;
+                        const at = [wx + p.x, wy + p.y, Math.min(btn.width, btn.height)];
+                        for (const v of btn.wins)
+                            Minimize.dockSlots[root.screenName + "|@w" + v.id] = at;
+                    }
+                    onXChanged: report()
+                    onYChanged: report()
+                    onWidthChanged: report()
+                    onWinsChanged: report()
+                    Component.onCompleted: report()
+                    // the bar may have slid under it (the section moved, Start or the hearts grew):
+                    // the place is asked again right before a window flies
+                    Connections {
+                        target: Minimize
+                        function onSlotsWanted(output) {
+                            if (output === root.screenName)
+                                btn.report();
+                        }
+                    }
+                    Connections {
+                        target: flick
+                        function onContentXChanged() {
+                            btn.report();
+                        }
+                        function onContentYChanged() {
+                            btn.report();
+                        }
+                    }
                     opacity: minimized ? 0.5 : 1
                     onClicked: {
-                        if (minimized)
-                            Minimize.restore(modelData.id);
+                        if (ghost)
+                            root.launchOrShow(appKey);
+                        else if (group)
+                            root.showPreview(btn, true);
                         else
-                            Niri.focusWindow(modelData.id);
+                            root.activate(win);
                     }
-                    onMiddleClicked: if (Config.bar.taskMiddleClose)
-                        Niri.closeWindow(modelData.id)
+                    // closing from a button closes what it stands for: a group of an app's windows all
+                    function closeAll() {
+                        for (const w of wins)
+                            Niri.closeWindow(w.id);
+                    }
+                    onMiddleClicked: if (ghost)
+                        root.launch(appKey)
+                    else if (Config.bar.taskMiddleClose)
+                        closeAll()
                     onRightClicked: {
+                        preview.visible = false;
+                        // a pinned app not running: no window to act on, the click unpins it
+                        if (ghost) {
+                            root.unpin(appKey);
+                            return;
+                        }
                         const mode = Config.bar.taskRightClick || "menu";
                         if (mode === "close")
-                            Niri.closeWindow(modelData.id);
+                            btn.closeAll();
                         else if (mode === "menu")
-                            menu.openFor(btn, modelData);
+                            menu.openFor(btn, win);
                     }
 
                     AppIcon {
                         id: ico
-                        x: (root.labels ? Theme.u * 4 : (btn.width - width) / 2) + (btn.down && !root.barInk ? Theme.u : 0)
+                        x: (root.labels ? Theme.u * 4 : (btn.width - width) / 2) + ((btn.bare ? btn.pressed : btn.down) && !root.barInk ? Theme.u : 0)
                         anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-                        anchors.verticalCenterOffset: btn.down && !root.barInk ? Theme.u : 0
-                        appId: btn.modelData.app_id || ""
+                        anchors.verticalCenterOffset: (btn.bare ? btn.pressed : btn.down) && !root.barInk ? Theme.u : 0
+                        appId: btn.win ? btn.win.app_id || "" : btn.appKey
                         size: root.labels ? Theme.u * 8 : Math.max(Theme.u * 8, btn.height - Theme.u * 6)
-                        tint: Config.bar.tintTasks && !btn.modelData.is_focused ? Config.bar.trayTint : "off"
+                        tint: Config.bar.tintTasks && !btn.checked ? Config.bar.trayTint : "off"
                         hellBar: root.barInk
                     }
                     PxText {
@@ -155,15 +516,17 @@ Item {
                         anchors.right: parent.right
                         anchors.rightMargin: closeX.visible ? closeX.width + Theme.u * 4 : Theme.u * 4
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: btn.down && !root.barInk ? Theme.u : 0
-                        text: Niri.titleOf(btn.modelData) || btn.modelData.app_id || "?"
+                        anchors.verticalCenterOffset: (btn.bare ? btn.pressed : btn.down) && !root.barInk ? Theme.u : 0
+                        readonly property var entry: btn.ghost ? DesktopEntries.byId(btn.appKey) || DesktopEntries.heuristicLookup(btn.appKey) : null
+                        text: btn.win ? Niri.titleOf(btn.win) || btn.win.app_id || "?" : entry ? entry.name : btn.appKey
                         elide: Text.ElideRight
-                        font.bold: btn.modelData.is_focused
-                        color: root.barInk ? (btn.modelData.is_urgent ? Theme.hellAccent : Theme.hellText) : btn.modelData.is_urgent ? Theme.danger : Theme.text
+                        font.bold: btn.checked
+                        readonly property bool urgent: !!btn.win && btn.win.is_urgent
+                        color: root.barInk ? (urgent ? Theme.hellAccent : btn.ghost ? Theme.hellTextDim : Theme.hellText) : urgent ? Theme.danger : btn.ghost ? Theme.textDim : Theme.text
                     }
                     // the window's cobweb (services/Cobweb): its corner, under the ×
                     CobwebBadge {
-                        ids: [btn.modelData.id]
+                        ids: btn.wins.map(w => w.id)
                         hovered: over.hovered
                         pixel: Math.max(1, Math.round(Theme.u / 2))
                         x: btn.width - width - Theme.u
@@ -172,7 +535,7 @@ Item {
                     // × on hover (Settings → Bar → Closing windows)
                     Rectangle {
                         id: closeX
-                        visible: Config.bar.taskHoverClose && over.hovered
+                        visible: Config.bar.taskHoverClose && over.hovered && !btn.group && !btn.ghost
                         readonly property int s: root.labels ? Theme.u * 9 : Theme.u * 7
                         width: s
                         height: s
@@ -193,11 +556,143 @@ Item {
                             anchors.margins: -Theme.u
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Niri.closeWindow(btn.modelData.id)
+                            onClicked: Niri.closeWindow(btn.win.id)
+                        }
+                    }
+                    // how many windows the app has: the bottom edge cut in as many pieces (up to 4),
+                    // the one in front lit; the wheel walks the light along them
+                    Item {
+                        id: segs
+                        visible: btn.group
+                        readonly property int n: Math.min(4, btn.wins.length)
+                        readonly property int front: btn.win && btn.win.is_focused ? Math.min(n - 1, btn.wins.indexOf(btn.win)) : -1
+                        readonly property int w: Math.floor((btn.width - Theme.u * 4 - (n - 1) * Theme.u) / Math.max(1, n))
+                        x: Theme.u * 2
+                        y: btn.height - Theme.u * 2
+                        Repeater {
+                            model: segs.n
+                            Rectangle {
+                                required property int index
+                                x: index * (segs.w + Theme.u)
+                                width: segs.w
+                                height: Theme.u
+                                color: Qt.alpha(root.barInk ? Theme.hellText : Theme.text, 0.45)
+                            }
+                        }
+                        Rectangle {
+                            visible: segs.front >= 0
+                            x: Math.max(0, segs.front) * (segs.w + Theme.u)
+                            width: segs.w
+                            height: Theme.u
+                            color: root.barInk ? Theme.hellAccent : Theme.accent
+                            Behavior on x {
+                                NumberAnimation {
+                                    duration: 140
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                        }
+                    }
+                    // the wheel on a group: its windows in turn, each to the front
+                    WheelHandler {
+                        enabled: btn.group
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        property real acc: 0
+                        onWheel: e => {
+                            acc += e.angleDelta.y || e.angleDelta.x;
+                            if (Math.abs(acc) < 120)
+                                return;
+                            const dir = acc < 0 ? 1 : -1;
+                            acc = 0;
+                            const ws = btn.wins, i = btn.win && btn.win.is_focused ? ws.indexOf(btn.win) : -1;
+                            const w = ws[(i + dir + ws.length) % ws.length];
+                            root.activate(w);
+                            root.flash(w);
+                            Sounds.play("windowCycle");
                         }
                     }
                 }
             }
+        }
+    }
+
+    // the window the wheel brought forward: its frame blinks twice, dim, in pixels (not while it
+    // comes back from minimized — that flies in on its own — nor when motion is calm)
+    property rect flashRect
+    function flash(w) {
+        const s = Shell.screenByName(screenName);
+        const r = !Motion.calm && s && !Minimize.isMinimized(w) ? Minimize.rectOf(w, screenName) : null;
+        if (!r)
+            return;
+        flashRect = Qt.rect(r[0] - s.x, r[1] - s.y, r[2], r[3]);
+        blink.restart();
+    }
+    LazyLoader {
+        active: blink.running
+        PanelWindow {
+            screen: Shell.screenByName(root.screenName)
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+            mask: Region {}
+            WlrLayershell.namespace: "angelos-window-flash"
+            RightClickGuard {}
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+            // a step outside the window, clear of niri's focus ring, which lights up at the same moment
+            Rectangle {
+                readonly property real gap: Theme.u * 5
+                x: root.flashRect.x - gap
+                y: root.flashRect.y - gap
+                width: root.flashRect.width + gap * 2
+                height: root.flashRect.height + gap * 2
+                color: "transparent"
+                border.width: Theme.u * 3
+                border.color: Qt.alpha(Theme.accent, 0.25)
+                visible: root.flashOn
+            }
+        }
+    }
+    property bool flashOn: false
+    SequentialAnimation {
+        id: blink
+        // the overlay comes up first, so the first blink isn't lost to it
+        PauseAnimation {
+            duration: 40
+        }
+        PropertyAction {
+            target: root
+            property: "flashOn"
+            value: true
+        }
+        PauseAnimation {
+            duration: 70
+        }
+        PropertyAction {
+            target: root
+            property: "flashOn"
+            value: false
+        }
+        PauseAnimation {
+            duration: 70
+        }
+        PropertyAction {
+            target: root
+            property: "flashOn"
+            value: true
+        }
+        PauseAnimation {
+            duration: 70
+        }
+        PropertyAction {
+            target: root
+            property: "flashOn"
+            value: false
         }
     }
 

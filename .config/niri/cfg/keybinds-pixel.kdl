@@ -5,11 +5,11 @@ binds {
     // https://github.com/YaLTeR/niri/wiki/Configuration:-Key-Bindings
 
     // ─── Applications ───
-    Mod+T                          hotkey-overlay-title="Терминал" { spawn "kitty"; }
+    Mod+T                          hotkey-overlay-title="Терминал" { spawn "kitty" "--single-instance"; }
     Mod+B                               hotkey-overlay-title="Браузер" { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos browser"; }
 
     // ─── angelOS ───
-    Mod+Space                    hotkey-overlay-title="angelOS: программы" { spawn-sh "qs -c angelos ipc call angelos launcher"; }
+    Mod+Space                    allow-inhibiting=false hotkey-overlay-title="angelOS: программы" { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos open launcher"; }
     Mod+ALT+L                           hotkey-overlay-title="angelOS: блокировка" { spawn-sh "qs -c angelos ipc call angelos lock"; }
 
     // Please set the text editor of your choice.
@@ -57,8 +57,8 @@ binds {
     Mod+Ctrl+R                          { reset-window-height; }
 
     // ─── Workspace Switching ───
-    Mod+WheelScrollDown                 cooldown-ms=150 { focus-workspace-down; }
-    Mod+WheelScrollUp                   cooldown-ms=150 { focus-workspace-up; }
+    Mod+WheelScrollDown                 cooldown-ms=150 { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos ws wheel-down"; }
+    Mod+WheelScrollUp                   cooldown-ms=150 { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos ws wheel-up"; }
 
     Mod+1                               { focus-workspace 1; }
     Mod+2                               { focus-workspace 2; }
@@ -95,11 +95,13 @@ binds {
     Mod+Shift+Space                     hotkey-overlay-title="Окно поверх / в ряд" { toggle-window-floating; }
     Mod+F                               { fullscreen-window; }
     Mod+Shift+F                         { maximize-column; }
-    Mod+W                               { toggle-column-tabbed-display; }
+    Mod+W                               hotkey-overlay-title="angelOS: Mission Control — все окна и столы" { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos open mission"; }
+    Mod+Shift+W                         { toggle-column-tabbed-display; }
     Mod+M                               { maximize-window-to-edges; }
+    Mod+Z                               hotkey-overlay-title="Свернуть окно" { spawn-sh "qs -c angelos ipc call angelos minimize"; }
 
     // ─── Screenshots (Win+Shift+S style) ───
-    Mod+Alt+I                           repeat=false hotkey-overlay-title="angelOS: остров — клики насквозь вкл/выкл" { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos islandThrough"; }
+    Mod+Alt+I                           repeat=false hotkey-overlay-title="angelOS: мини-браузер — клики насквозь вкл/выкл" { spawn-sh "exec ~/.config/quickshell/angelos/bin/angelos islandThrough"; }
 
     // Use this when a fullscreen app blocks your keybinds.
     // It disables any active keyboard shortcut inhibitor, restoring control.

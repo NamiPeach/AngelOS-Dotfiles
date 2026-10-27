@@ -6,6 +6,8 @@ import "A11y.js" as A11y
 // Pixel slider: sunken track, pink fill, heart thumb.
 Item {
     id: root
+    // inside the P5 settings window: its colours (Theme.tone)
+    readonly property bool p5: settingsSkin === "p5"
     // the filled part (a caller in another colour scheme passes its own, e.g. the Halo)
     property color fill: Theme.accent
 
@@ -26,6 +28,8 @@ Item {
     property int decimals: 0
     property bool showValue: true
     readonly property string settingsSkin: Theme.settingsSkinFor(root.parent)
+    // the P5 settings window draws like the classic look, in its own colours
+    readonly property bool classicLike: settingsSkin === "classic" || settingsSkin === "p5"
     // the Golden Gate skin's System Settings: a Mac slider — a thin track, the accent up to a
     // round white knob
     readonly property bool mac: settingsSkin === "goldengate"
@@ -50,7 +54,8 @@ Item {
     Accessible.onIncreaseAction: nudge(1)
     Accessible.onDecreaseAction: nudge(-1)
 
-    implicitWidth: Theme.u * 110
+    // in a box marked fixedWidth (SettingRow's control column) no wider than it, as PxSegmented
+    implicitWidth: parent && parent.fixedWidth === true ? Math.min(Theme.u * 110, parent.width) : Theme.u * 110
     implicitHeight: Theme.u * 12
 
     readonly property real frac: to === from ? 0 : Math.max(0, Math.min(1, (shown - from) / (to - from)))
@@ -66,14 +71,14 @@ Item {
 
     PxBox {
         id: track
-        visible: root.settingsSkin === "classic"
+        visible: root.classicLike
         anchors.left: parent.left
         anchors.right: valueLabel.visible ? valueLabel.left : parent.right
         anchors.rightMargin: valueLabel.visible ? Theme.u * 4 : 0
         anchors.verticalCenter: parent.verticalCenter
         height: Theme.u * 6
         sunken: true
-        color: Theme.sunken
+        color: Theme.toneOf(root.settingsSkin, "sunken")
 
         Rectangle {
             x: 0
@@ -100,7 +105,7 @@ Item {
         }
     }
     Rectangle {
-        visible: root.settingsSkin !== "classic" && !root.mac
+        visible: !root.classicLike && !root.mac
         x: track.x
         y: track.y
         width: track.width
@@ -121,12 +126,12 @@ Item {
 
     PxBox {
         id: thumb
-        visible: root.settingsSkin === "classic"
+        visible: root.classicLike
         width: Theme.u * 9
         height: Theme.u * 12
         anchors.verticalCenter: track.verticalCenter
         x: track.x + root.frac * (track.width - width)
-        color: mouse.containsMouse || mouse.pressed ? Theme.faceAlt : Theme.face
+        color: mouse.containsMouse || mouse.pressed ? Theme.toneOf(root.settingsSkin, "faceAlt") : Theme.toneOf(root.settingsSkin, "face")
         PxIcon {
             anchors.centerIn: parent
             name: "heartSmall"
@@ -145,7 +150,7 @@ Item {
         border.color: Qt.rgba(0, 0, 0, mouse.pressed ? 0.25 : 0.14)
     }
     Rectangle {
-        visible: root.settingsSkin !== "classic" && !root.mac
+        visible: !root.classicLike && !root.mac
         width: thumb.width
         height: thumb.height
         anchors.verticalCenter: track.verticalCenter

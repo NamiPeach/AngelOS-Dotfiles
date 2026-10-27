@@ -938,7 +938,7 @@ Scope {
             }
             report("search-every-row", misses.length === 0, misses.length ? misses.length + " not found by name: " + misses.slice(0, 8).join("; ") : "all rows found by name");
             // everyday words lead to their page (among the first three)
-            const wordsTo = [["fastfetch", "terminal"], ["неофетч", "terminal"], ["скрин", "capture"], ["запись экрана", "capture"], ["obs", "obs"], ["лупа", "lens"], ["контраст", "contrast"], ["хоткеи", "shortcuts"], ["блюр", "theme"], ["диктовка", "voice"], ["сундуки", "rewards"], ["заставка", "lock"], ["стример", "stream-angel"], ["режим разработчика", "lab"], ["таскбар", "taskbar"]];
+            const wordsTo = [["fastfetch", "terminal"], ["неофетч", "terminal"], ["скрин", "capture"], ["запись экрана", "capture"], ["obs", "obs"], ["лупа", "lens"], ["контраст", "contrast"], ["хоткеи", "shortcuts"], ["блюр", "theme-glass"], ["диктовка", "voice"], ["сундуки", "rewards"], ["заставка", "lock"], ["стример", "stream-angel"], ["режим разработчика", "lab"], ["таскбар", "taskbar"]];
             // a page id as the tree has it now (an old one leads where Settings send it: lab →
             // developer, lens → a11y), so a page renamed or merged doesn't break the list
             const pageNow = id => SettingsTree.resolve(id).page || id;
@@ -972,7 +972,7 @@ Scope {
                 const pg = view.pageItem;
                 report("more-folded", !!pg && pg.hasMore === true && pg.moreOpen === false && (pg.breathing === true || Motion.calm) && !view.findItem(pg.flick.contentItem, {
                     "kind": "name",
-                    "target": "icons"
+                    "target": "taskbar-other"
                 }, false), "taskbar: more " + (pg ? pg.hasMore + "/" + pg.moreOpen + ", waves " + pg.breathing : "no page"));
                 view.back();
                 navStep++;
@@ -1069,7 +1069,7 @@ Scope {
             if (switchStep === 1) {
                 if ((!pg || view.diagnostics().page !== "taskbar" || Date.now() - started < 300) && Date.now() - started < 20000)
                     return;
-                const r = SettingsSearch.search("плотность трея", 5).find(x => x.page === "taskbar" && x.kind === "row");
+                const r = SettingsSearch.search("компактно на вертикальных", 5).find(x => x.page === "taskbar" && x.kind === "row");
                 switchNote = r ? r.target : "";
                 if (r)
                     view.openResult(r);
@@ -2301,18 +2301,18 @@ Scope {
             Story.setEnabled(true);
             Story.reset();
             Config.desktop.menuStyle = "harp";
-            Config.y2k.angelLook = "adult";
-            const locked = !Heaven.has("menu.harp") && !Heaven.has("look.adult") && DeskMenu.chosen === "list" && Angel.angelLook === "glitch" && Config.desktop.menuStyle === "harp";
+            Config.y2k.angelLook = "chibi";
+            const locked = !Heaven.has("menu.harp") && !Heaven.has("look.chibi") && DeskMenu.chosen === "list" && Angel.angelLook === "glitch" && Config.desktop.menuStyle === "harp";
             // the game off: all of heaven, nothing counted
             Story.setEnabled(false);
             const before = Achievements.count("settings.open");
             Achievements.note("settings.open");
             Achievements.check();
-            const allOpen = Heaven.ids.every(i => Heaven.has(i)) && DeskMenu.chosen === "harp" && Angel.angelLook === "adult" && Achievements.count("settings.open") === before && Achievements.earned === 0 && !Achievements.current;
+            const allOpen = Heaven.ids.every(i => Heaven.has(i)) && DeskMenu.chosen === "harp" && Angel.angelLook === "chibi" && Achievements.count("settings.open") === before && Achievements.earned === 0 && !Achievements.current;
             // on again: locked again
             Story.setEnabled(true);
             const relocked = !Heaven.has("menu.harp") && DeskMenu.chosen === "list" && Angel.angelLook === "glitch";
-            report("ach-no-game", locked && allOpen && relocked, "game on, fresh save: harp and adult locked, the usual shows " + locked + "; game off: all open, nothing counted " + allOpen + "; on again: locked again " + relocked);
+            report("ach-no-game", locked && allOpen && relocked, "game on, fresh save: harp and chibi locked, the usual shows " + locked + "; game off: all open, nothing counted " + allOpen + "; on again: locked again " + relocked);
             // earning: Settings opened → its achievement and the mini look
             Achievements.note("settings.open");
             Achievements.check();

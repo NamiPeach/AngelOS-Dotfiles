@@ -613,6 +613,13 @@ Singleton {
     // by day the interface is a zine: flat boxes (widgets/PxBox), an outline, a solid shadow
     readonly property bool zine: !night && !macLook
     readonly property real shadowAlpha: zine ? (dayLook && dayLook.shadowAlpha || 1) : dark ? 0.55 : 0.35
+    // the Win10 skin (Config.settingsUi.skin "win10", the 2026-10-27 references): angelOS classic
+    // with Windows 10's taskbar buttons, RetroUI's bubbles, hard shadows and striped progress, and
+    // Start as tiles (StartTiles); the paradise only — hell and Golden Gate keep their own
+    readonly property bool win10: Config.ready && Config.settingsUi.skin === "win10" && !hell && !macLook
+    // the shell's own windows and menus (PxWindow, MenuLook): Win10's is a hard shadow stepped off
+    // down-right, solid like RetroUI's; else the soft one
+    readonly property color popShadow: win10 ? shadow : Qt.alpha(shadow, shadowAlpha)
     readonly property var ansi: base.ansi
 
     // translucent panel background (blur shows through)
@@ -651,6 +658,67 @@ Singleton {
             if (p.zoomedFrame !== undefined)
                 return p.zoomedFrame === true;
         return false;
+    }
+    // ---- the P5 settings window (modules/settings/p5): black, paper and the accent ----
+    // The window puts settingsSkin "p5" on what it shows; the pixel widgets inside take these
+    // colours (and their own P5 shapes), and a catalog's own parts ask tone() for theirs.
+    // The dark theme turns the card over: "black" is the ink, "paper" what it is written on, so
+    // there the paper is near-black and the ink light (a white card glared at night — the owner).
+    readonly property color p5Black: dark ? mix("#ffffff", accent, 0.08) : mix("#000000", accent, 0.07)
+    // the papers are greys with a breath of the accent: the accent itself only on what is picked
+    // («P5, quieter», decision №15, 25.10)
+    function p5Grey(l) {
+        return mix(mix("#000000", "#ffffff", l), accent, 0.05);
+    }
+    readonly property color p5Paper: dark ? p5Grey(0.1) : p5Grey(0.97)
+    readonly property color p5White: dark ? p5Grey(0.15) : p5Grey(0.995)
+    readonly property color p5Paper2: dark ? p5Grey(0.21) : p5Grey(0.88)
+    readonly property color p5Paper3: dark ? p5Grey(0.3) : p5Grey(0.78)
+    readonly property color p5Dim: mix(p5Black, dark ? "#000000" : "#ffffff", 0.38)
+    // the accent as letters on the paper: darkened (lightened on the dark card) until it reads
+    readonly property color p5AccentInk: dark ? mix(accent, "#ffffff", 0.2) : darkTo(accent, 0.18)
+    // a colour darkened until its luminance is at most `l` (text on white)
+    function darkTo(c, l) {
+        let k = 0;
+        let x = Qt.color(c);
+        while (luminance(x) > l && k < 12) {
+            x = mix(x, "#000000", 0.12);
+            k++;
+        }
+        return x;
+    }
+    function p5For(item) {
+        return settingsSkinFor(item) === "p5";
+    }
+    // a settings look's own colours by the theme's names (face, faceAlt, sunken, text, textDim, edge,
+    // lo, hi, ok, danger, accent2…): a new look adds its entry here, and the catalog and the Px
+    // widgets inside it take them through toneFor/toneOf; a name a look leaves out is the theme's own
+    readonly property var skinTones: ({
+            "p5": {
+                "face": p5Paper2,
+                "faceAlt": p5Paper3,
+                "sunken": dark ? mix("#000000", accent, 0.06) : mix("#ffffff", accent, 0.08),
+                "text": p5Black,
+                "edge": p5Black,
+                "lo": p5Black,
+                "textDim": p5Dim,
+                "hi": "#ffffff",
+                "ok": dark ? ok : darkTo(ok, 0.2),
+                "danger": dark ? danger : darkTo(danger, 0.2),
+                "accent2": dark ? accent2 : darkTo(accent2, 0.2)
+            }
+        })
+    function toneOf(skin, name) {
+        const t = skinTones[skin];
+        return t && t[name] !== undefined ? t[name] : root[name];
+    }
+    // the colour `name` in the settings look `item` sits in
+    function toneFor(name, item) {
+        return toneOf(settingsSkinFor(item), name);
+    }
+    // the older call: the theme's colour, or the P5 look's
+    function tone(name, p5) {
+        return p5 ? toneOf("p5", name) : root[name];
     }
     function settingsSkinFor(item) {
         for (let p = item; p; p = p.parent)
@@ -742,6 +810,26 @@ Singleton {
         id: hellTextFont
         source: Qt.resolvedUrl("../data/fonts/DepartureMono-Regular.otf")
     }
+    // ---- the P5 settings window's letters (OFL, data/fonts; Latin and Cyrillic) ----
+    // its text: Handjet at its bold (a static cut, HandjetP5-Bold), narrow like P5's menus;
+    // a size larger than the body's — a narrow face needs it (p5BodyPx)
+    readonly property string fontP5Body: p5BodyFont.status === FontLoader.Ready ? p5BodyFont.name : fontBody
+    function p5BodyPx(px) {
+        return Math.round(px * 1.5);
+    }
+    // the P5 window's own words (a line's name, its value) a size more again (the owner, 23.10: «шрифт больше»)
+    readonly property int p5LabelPx: Math.round(sizeTitle * 1.75)
+    FontLoader {
+        id: p5BodyFont
+        source: Qt.resolvedUrl("../data/fonts/HandjetP5-Bold.ttf")
+    }
+    FontLoader {
+        id: dotGothicFont
+        source: Qt.resolvedUrl("../data/fonts/DotGothic16-Regular.ttf")
+    }
+    // the cut-out letters of its headings: a font per letter, each with Cyrillic (the last
+    // four come with angelOS's fonts, ~/.local/share/fonts/angelos)
+    readonly property var p5Ransom: [fontTitle, fontHell, fontP5Body, fontMono, dotGothicFont.status === FontLoader.Ready ? dotGothicFont.name : fontBody, fontHellText, "Press Start 2P", "Monocraft", "Tiny5", fontBody]
     // (hell's lyrics used to have a font of their own; now the headings' — kept for plugins)
     readonly property string fontLyricsHell: fontHell
 
@@ -809,7 +897,10 @@ Singleton {
             "Press Start 2P": 8,
             "Monocraft": 9,
             "Departure Mono": 11,
-            "Silkscreen": 8
+            "Silkscreen": 8,
+            "Jacquard 12 Hell": 12,
+            "DotGothic16": 16,
+            "Handjet P5": 16
         })
     function crisp(base, family) {
         const n = fontNative[family] || 0;
